@@ -1,0 +1,247 @@
+import { useQueryClient } from '@tanstack/react-query'
+import { formatDistanceToNow } from 'date-fns'
+import { type FormEvent, useEffect, useState } from 'react'
+
+import { useCreateCommentIssuesIssueIdCommentsPost, useListCommentsIssuesIssueIdCommentsGet } from '../api/generated/endpoints/comments/comments'
+import { useGetIssueIssuesIssueIdGet, useUpdateIssueIssuesIssueIdPatch } from '../api/generated/endpoints/issues/issues'
+import { IssuePriority, IssueStatus } from '../api/generated/models'
+import { PRIORITY_META, PRIORITY_ORDER, STATUS_META, STATUS_ORDER } from '../lib/issueMeta'
+import { useTeamContext } from '../team/TeamContext'
+import { Avatar } from './Avatar'
+import { PriorityIcon } from './PriorityIcon'
+
+export function IssueDetailPanel({
+  issueId,
+  onClose,
+}: {
+  issueId: number
+  onClose: () => void
+}) {
+  const { team, members, labels } = useTeamContext()
+  const queryClient = useQueryClient()
+
+  const issueQuery = useGetIssueIssuesIssueIdGet(issueId)
+  const commentsQuery = useListCommentsIssuesIssueIdCommentsGet(issueId)
+  const updateIssue = useUpdateIssueIssuesIssueIdPatch()
+  const createComment = useCreateCommentIssuesIssueIdCommentsPost()
+
+  const issue = issueQuery.data
+
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [commentBody, setCommentBody] = useState('')
+
+  useEffect(() => {
+    if (issue) {
+      setTitle(issue.title)
+      setDescription(issue.description ?? '')
+    }
+  }, [issue])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  const invalidateIssue = () => {
+    queryClient.invalidateQueries({ queryKey: [`/teams/${team.id}/issues`] })
+    queryClient.invalidateQueries({ queryKey: [`/issues/${issueId}`] })
+  }
+
+  const patch = async (data: Parameters<typeof updateIssue.mutateAsync>[0]['data']) => {
+    await updateIssue.mutateAsync({ issueId, data })
+    invalidateIssue()
+  }
+
+  const onSubmitComment = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!commentBody.trim()) return
+    await createComment.mutateAsync({ issueId, data: { body: commentBody.trim() } })
+    setCommentBody('')
+    queryClient.invalidateQueries({ queryKey: [`/issues/${issueId}/comments`] })
+  }
+
+  const currentLabelIds = new Set((issue?.labels ?? []).map((l) => l.id))
+  const toggleLabel = (labelId: number) => {
+    const next = currentLabelIds.has(labelId)
+      ? [...currentLabelIds].filter((id) => id !== labelId)
+      : [...currentLabelIds, labelId]
+    patch({ label_ids: next })
+  }
+
+  return (
+    <div className="fixed inset-0 z-20 flex justify-end bg-black/20" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex h-full w-full max-w-lg flex-col overflow-y-auto border-l border-gray-200 bg-white shadow-xl"
+      >
+        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+          <span className="text-xs font-medium text-gray-400">
+            {issue ? issue.identifier : '…'}
+          </span>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700" aria-label="Close">
+            ✕
+          </button>
+        </div>
+
+        {!issue ? (
+          <div className="flex flex-1 items-center justify-center text-sm text-gray-400">
+            Loading…
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 px-4 py-4">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onBlur={() => title.trim() && title !== issue.title && patch({ title: title.trim() })}
+                className="w-full border-none p-0 text-lg font-semibold text-gray-900 focus:outline-none focus:ring-0"
+              />
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                onBlur={() => description !== (issue.description ?? '') && patch({ description })}
+                placeholder="Add a description…"
+                rows={5}
+                className="mt-3 w-full resize-none border-none p-0 text-sm text-gray-600 placeholder-gray-300 focus:outline-none focus:ring-0"
+              />
+
+              <div className="mt-4 space-y-3 rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Status</span>
+                  <select
+                    value={issue.status}
+                    onChange={(e) => patch({ status: e.target.value as IssueStatus })}
+                    className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs"
+                  >
+                    {STATUS_ORDER.map((s) => (
+                      <option key={s} value={s}>
+                        {STATUS_META[s].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Priority</span>
+                  <select
+                    value={issue.priority}
+                    onChange={(e) => patch({ priority: e.target.value as IssuePriority })}
+                    className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs"
+                  >
+                    {PRIORITY_ORDER.map((p) => (
+                      <option key={p} value={p}>
+                        {PRIORITY_META[p].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Assignee</span>
+                  <select
+                    value={issue.assignee?.id ?? ''}
+                    onChange={(e) =>
+                      patch({ assignee_id: e.target.value ? Number(e.target.value) : null })
+                    }
+                    className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs"
+                  >
+                    <option value="">Unassigned</option>
+                    {members.map((m) => (
+                      <option key={m.user.id} value={m.user.id}>
+                        {m.user.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <span className="mb-1.5 block text-xs text-gray-500">Labels</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {labels.map((label) => {
+                      const active = currentLabelIds.has(label.id)
+                      return (
+                        <button
+                          key={label.id}
+                          type="button"
+                          onClick={() => toggleLabel(label.id)}
+                          className="rounded-full border px-2 py-0.5 text-[11px] font-medium transition"
+                          style={{
+                            borderColor: active ? label.color : '#e5e7eb',
+                            backgroundColor: active ? `${label.color}20` : 'transparent',
+                            color: active ? label.color : '#6b7280',
+                          }}
+                        >
+                          {label.name}
+                        </button>
+                      )
+                    })}
+                    {labels.length === 0 && (
+                      <span className="text-xs text-gray-400">No labels on this team yet.</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-gray-400">
+                <PriorityIcon priority={issue.priority} />
+                <span>
+                  Created by {issue.creator.full_name},{' '}
+                  {formatDistanceToNow(new Date(issue.created_at), { addSuffix: true })}
+                </span>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 px-4 py-4">
+              <h3 className="mb-3 text-sm font-medium text-gray-700">
+                Comments {commentsQuery.data ? `(${commentsQuery.data.length})` : ''}
+              </h3>
+              <div className="mb-3 space-y-3">
+                {commentsQuery.data?.map((comment) => (
+                  <div key={comment.id} className="flex gap-2">
+                    <Avatar user={comment.author} size={24} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-medium text-gray-800">
+                          {comment.author.full_name}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {formatDistanceToNow(new Date(comment.created_at), {
+                            addSuffix: true,
+                          })}
+                        </span>
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm text-gray-700">{comment.body}</p>
+                    </div>
+                  </div>
+                ))}
+                {commentsQuery.data?.length === 0 && (
+                  <p className="text-xs text-gray-400">No comments yet.</p>
+                )}
+              </div>
+
+              <form onSubmit={onSubmitComment} className="flex gap-2">
+                <input
+                  value={commentBody}
+                  onChange={(e) => setCommentBody(e.target.value)}
+                  placeholder="Leave a comment…"
+                  className="flex-1 rounded-md border border-gray-200 px-2.5 py-1.5 text-sm focus:border-indigo-400 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={!commentBody.trim() || createComment.isPending}
+                  className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  Send
+                </button>
+              </form>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

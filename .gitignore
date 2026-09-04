@@ -1,0 +1,29 @@
+# --- Python / backend ---
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+
+# Local configuration and data. .env.example is committed; .env is not.
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite3
+*.log
+
+# --- Node / frontend ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# --- Editors / OS ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.swp

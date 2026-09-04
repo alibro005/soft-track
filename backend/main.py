@@ -1,0 +1,42 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app_identity.identity import router as identity_router
+from app_softtrack.comments import router as comments_router
+from app_softtrack.issues import router as issues_router
+from app_softtrack.labels import router as labels_router
+from app_softtrack.projects import router as projects_router
+from app_softtrack.teams import router as teams_router
+from web import init_db, settings
+
+app = FastAPI(
+    title=settings.app_name,
+    description="An open-source, self-hostable issue tracker inspired by Linear.",
+    version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
+
+
+app.include_router(identity_router)
+app.include_router(teams_router)
+app.include_router(projects_router)
+app.include_router(labels_router)
+app.include_router(issues_router)
+app.include_router(comments_router)
+
+
+@app.get("/health", tags=["health"])
+def health():
+    return {"status": "ok"}
