@@ -9,6 +9,10 @@ pydantic==2.13.5
 pydantic_core==2.46.5
 python-jose==3.5.0
 cryptography>=42.0.0
+# Postgres driver, used via postgresql+psycopg://. Not needed for the SQLite
+# default, but installed so DATABASE_URL can point at Postgres (docker compose
+# does exactly that) without a second install step.
+psycopg[binary]==3.2.3
 python-multipart==0.0.32
 sqlmodel==0.0.42
 starlette==1.6.0

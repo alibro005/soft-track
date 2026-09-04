@@ -60,7 +60,55 @@ soft_track/
     └── package.json
 ```
 
-## Quickstart
+## Run with Docker
+
+The fastest way to get the whole thing running — frontend, API, and database —
+with nothing installed but Docker:
+
+```bash
+docker compose up --build
+```
+
+Then open **http://localhost:5173** and sign in with `demo@softtrack.dev` /
+`password123`. The API is on http://localhost:8000 (docs at `/docs`).
+
+Three services come up in order, each waiting for the one below it to report
+healthy:
+
+| Service    | Image                | Port           | Notes                                     |
+| ---------- | -------------------- | -------------- | ----------------------------------------- |
+| `frontend` | nginx (multi-stage)  | 5173 → 80      | Production build, not the dev server      |
+| `backend`  | python:3.13-slim     | 8000           | Seeds demo data on first start            |
+| `db`       | postgres:16-alpine   | internal only  | Data on the `softtrack-db` named volume   |
+
+Useful commands:
+
+```bash
+docker compose logs -f backend    # follow API logs
+docker compose down               # stop; database volume is kept
+docker compose down -v            # stop and DELETE the database
+```
+
+Notes worth knowing:
+
+- **Data persists** across `docker compose down` in the `softtrack-db` volume.
+  Only `down -v` destroys it.
+- **The database is not published to the host.** Only the backend can reach it.
+  Uncomment the `ports` block on the `db` service to connect a local client.
+- **`VITE_API_BASE_URL` is baked in at build time**, not runtime — Vite inlines
+  it. It defaults to `http://localhost:8000` because your *browser* calls the
+  API, not the frontend container. Serving this anywhere other than localhost
+  means rebuilding with the right value:
+  `docker compose build --build-arg VITE_API_BASE_URL=https://api.example.com frontend`.
+- **Set a real `SECRET_KEY`** before running this anywhere but your own machine.
+  It is read from the environment, so `SECRET_KEY=... docker compose up` or a
+  `.env` file next to `docker-compose.yml` both work.
+- Host port 5173 is deliberate: it matches the backend's default `cors_origins`,
+  so the API accepts the frontend's requests without extra configuration. If
+  something else on your machine already holds 5173 (a `npm run dev` you left
+  running), it will shadow the container.
+
+## Quickstart (without Docker)
 
 Requires Python 3.11+ and Node 20+.
 

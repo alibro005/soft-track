@@ -1,0 +1,14 @@
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.db
+*.sqlite3
+.env
+.env.*
+!.env.example
+*.log
+.pytest_cache/
+.coverage
+Dockerfile
+.dockerignore
