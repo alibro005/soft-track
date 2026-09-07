@@ -91,6 +91,10 @@ export function MarkdownEditor({
       }
       if (event.key === 'Escape') {
         event.preventDefault()
+        // Stop it reaching the panel's window listener, which closes the whole
+        // detail panel on Escape. Dismissing the mention menu must not throw
+        // away an unsaved description along with it.
+        event.stopPropagation()
         setMention(null)
         return
       }

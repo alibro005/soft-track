@@ -5,6 +5,7 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { useCreateCommentIssuesIssueIdCommentsPost, useListCommentsIssuesIssueIdCommentsGet } from '../api/generated/endpoints/comments/comments'
 import { useGetIssueIssuesIssueIdGet, useUpdateIssueIssuesIssueIdPatch } from '../api/generated/endpoints/issues/issues'
 import { IssuePriority, IssueStatus } from '../api/generated/models'
+import { isPlainKey, isTypingTarget } from '../keyboard/typing'
 import {
   ESTIMATE_SCALE,
   PRIORITY_META,
@@ -51,7 +52,28 @@ export function IssueDetailPanel({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        // Only close if the keystroke is not being used to dismiss something
+        // inside the panel -- a native select swallows its own Escape, so by
+        // the time it reaches here the user does mean the panel.
+        onClose()
+        return
+      }
+
+      if (!isPlainKey(e) || isTypingTarget(e.target)) return
+
+      // Focus the control rather than mutating anything: the value still gets
+      // chosen deliberately, which is what keeps a stray keystroke from
+      // silently reassigning someone's issue.
+      const field = { s: 'status', p: 'priority', a: 'assignee', l: 'labels' }[
+        e.key.toLowerCase()
+      ]
+      if (!field) return
+
+      const control = document.querySelector<HTMLElement>(`[data-field="${field}"]`)
+      if (!control) return
+      e.preventDefault()
+      control.focus()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -193,6 +215,7 @@ export function IssueDetailPanel({
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-neutral-500">Status</span>
                   <select
+                    data-field="status"
                     value={issue.status}
                     onChange={(e) => patch({ status: e.target.value as IssueStatus })}
                     className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs"
@@ -208,6 +231,7 @@ export function IssueDetailPanel({
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-neutral-500">Priority</span>
                   <select
+                    data-field="priority"
                     value={issue.priority}
                     onChange={(e) => patch({ priority: e.target.value as IssuePriority })}
                     className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs"
@@ -247,6 +271,7 @@ export function IssueDetailPanel({
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-neutral-500">Assignee</span>
                   <select
+                    data-field="assignee"
                     value={issue.assignee?.id ?? ''}
                     onChange={(e) =>
                       patch({ assignee_id: e.target.value ? Number(e.target.value) : null })
@@ -265,12 +290,13 @@ export function IssueDetailPanel({
                 <div>
                   <span className="mb-1.5 block text-xs text-neutral-500">Labels</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {labels.map((label) => {
+                    {labels.map((label, index) => {
                       const active = currentLabelIds.has(label.id)
                       return (
                         <button
                           key={label.id}
                           type="button"
+                          data-field={index === 0 ? 'labels' : undefined}
                           onClick={() => toggleLabel(label.id)}
                           className="rounded-full border px-2 py-0.5 text-[11px] font-medium transition"
                           style={{
