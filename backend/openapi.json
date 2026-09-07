@@ -742,6 +742,24 @@
             }
           },
           {
+            "name": "parent_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only sub-issues of this issue.",
+              "title": "Parent Id"
+            },
+            "description": "Only sub-issues of this issue."
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -1630,6 +1648,17 @@
             "title": "Estimate",
             "description": "Story points on the scale 1, 2, 3, 5, 8. Null means not sized yet, which is distinct from an estimate of zero."
           },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
           "label_ids": {
             "items": {
               "type": "integer"
@@ -1832,6 +1861,24 @@
             "type": "integer",
             "title": "Blocked By Count"
           },
+          "parent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "child_count": {
+            "type": "integer",
+            "title": "Child Count"
+          },
+          "completed_child_count": {
+            "type": "integer",
+            "title": "Completed Child Count"
+          },
           "creator": {
             "$ref": "#/components/schemas/UserPublic"
           },
@@ -1864,6 +1911,8 @@
           "status",
           "priority",
           "blocked_by_count",
+          "child_count",
+          "completed_child_count",
           "creator",
           "created_at",
           "updated_at"
@@ -1967,6 +2016,17 @@
             ],
             "title": "Estimate",
             "description": "Story points on the scale 1, 2, 3, 5, 8. Null means not sized yet, which is distinct from an estimate of zero."
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
           },
           "label_ids": {
             "anyOf": [
@@ -2156,6 +2216,30 @@
           "offset"
         ],
         "title": "Page[SearchHit]"
+      },
+      "ParentRef": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "identifier",
+          "title"
+        ],
+        "title": "ParentRef",
+        "description": "Just enough of the parent to render a breadcrumb."
       },
       "ProjectCreate": {
         "properties": {

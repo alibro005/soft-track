@@ -34,6 +34,9 @@ def list_issues(
     status: Optional[IssueStatus] = None,
     priority: Optional[IssuePriority] = None,
     assignee_id: Optional[int] = None,
+    parent_id: Optional[int] = Query(
+        None, description="Only sub-issues of this issue."
+    ),
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     offset: int = Query(0, ge=0),
     session: Session = Depends(get_session),
@@ -47,6 +50,7 @@ def list_issues(
         status=status,
         priority=priority,
         assignee_id=assignee_id,
+        parent_id=parent_id,
         limit=limit,
         offset=offset,
     )

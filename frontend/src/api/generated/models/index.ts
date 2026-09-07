@@ -31,6 +31,7 @@ export * from './listIssuesTeamsTeamIdIssuesGetParams';
 export * from './pageCommentRead';
 export * from './pageIssueRead';
 export * from './pageSearchHit';
+export * from './parentRef';
 export * from './projectCreate';
 export * from './projectRead';
 export * from './searchHit';

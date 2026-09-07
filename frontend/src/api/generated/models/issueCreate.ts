@@ -18,5 +18,6 @@ export interface IssueCreate {
   assignee_id?: number | null;
   /** Story points on the scale 1, 2, 3, 5, 8. Null means not sized yet, which is distinct from an estimate of zero. */
   estimate?: IssueCreateEstimate;
+  parent_id?: number | null;
   label_ids?: number[];
 }

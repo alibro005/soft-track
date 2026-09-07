@@ -38,6 +38,14 @@ export function IssueCard({ issue }: { issue: IssueRead }) {
         <span className="identifier text-xs font-medium text-neutral-400">{issue.identifier}</span>
         <div className="flex items-center gap-1.5">
           {issue.blocked_by_count > 0 && <BlockedMarker count={issue.blocked_by_count} />}
+          {issue.child_count > 0 && (
+            <span
+              className="identifier text-[10px] text-neutral-400"
+              title={`${issue.completed_child_count} of ${issue.child_count} sub-issues done`}
+            >
+              {issue.completed_child_count}/{issue.child_count}
+            </span>
+          )}
           {issue.estimate != null && <EstimateBadge points={issue.estimate} />}
           <PriorityIcon priority={issue.priority} />
         </div>

@@ -18,6 +18,7 @@ import { useTeamContext } from '../team/TeamContext'
 import { Avatar } from './Avatar'
 import { IssueLinksSection } from './IssueLinksSection'
 import { PriorityIcon } from './PriorityIcon'
+import { SubIssuesSection } from './SubIssuesSection'
 
 export function IssueDetailPanel({
   issueId,
@@ -120,6 +121,7 @@ export function IssueDetailPanel({
         ) : (
           <>
             <div className="flex-1 px-4 py-4">
+              {issue.parent && <SubIssuesSection issue={issue} />}
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -288,6 +290,7 @@ export function IssueDetailPanel({
                 </div>
               </div>
 
+              {!issue.parent && <SubIssuesSection issue={issue} />}
               <IssueLinksSection issueId={issue.id} />
 
               <div className="mt-4 flex items-center gap-1.5 text-xs text-neutral-400">

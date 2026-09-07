@@ -39,6 +39,14 @@ Estimate = Annotated[
 ]
 
 
+class ParentRef(BaseModel):
+    """Just enough of the parent to render a breadcrumb."""
+
+    id: int
+    identifier: str
+    title: str
+
+
 class IssueCreate(BaseModel):
     title: str
     description: Optional[str] = None
@@ -47,6 +55,7 @@ class IssueCreate(BaseModel):
     priority: IssuePriority = IssuePriority.no_priority
     assignee_id: Optional[int] = None
     estimate: Estimate = None
+    parent_id: Optional[int] = None
     label_ids: list[int] = []
 
 
@@ -58,8 +67,11 @@ class IssueUpdate(BaseModel):
     priority: Optional[IssuePriority] = None
     assignee_id: Optional[int] = None
     # `exclude_unset` in the service keeps "clear the estimate" (an explicit
-    # null) distinct from "leave it alone" (the field omitted).
+    # null) distinct from "leave it alone" (the field omitted). The same
+    # applies to parent_id below.
     estimate: Estimate = None
+    #: An explicit null detaches the issue from its parent.
+    parent_id: Optional[int] = None
     label_ids: Optional[list[int]] = None
 
 
@@ -77,11 +89,15 @@ class IssueRead(BaseModel):
     estimate: Optional[int] = None
     #: Unresolved issues that block this one. Zero for an issue that is free
     #: to start; the board marks anything above zero.
-    #:
-    #: No default: every path that builds an IssueRead sets it, and leaving it
-    #: defaulted would make it optional in the schema, which pushes an
-    #: `undefined` check into every client that reads it.
     blocked_by_count: int
+    parent: Optional[ParentRef] = None
+    #: Sub-issue progress, excluding cancelled children from both numbers.
+    #: Zero of zero for an issue with no sub-issues.
+    child_count: int
+    completed_child_count: int
+    #: None of the three counts above carry a default. Every path that builds
+    #: an IssueRead sets them, and defaulting them would make them optional in
+    #: the schema, pushing an `undefined` check into every client.
     creator: UserPublic
     labels: list[LabelRead] = []
     created_at: datetime

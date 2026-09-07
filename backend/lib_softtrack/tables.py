@@ -129,6 +129,10 @@ class Issue(SQLModel, table=True):
     status: IssueStatus = Field(default=IssueStatus.backlog, index=True)
     priority: IssuePriority = Field(default=IssuePriority.no_priority)
     assignee_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    # One level of nesting only -- an issue with a parent may not itself be a
+    # parent. See lib_softtrack/subissues.py for why that limit is enforced
+    # rather than left to convention.
+    parent_id: Optional[int] = Field(default=None, foreign_key="issue.id", index=True)
     creator_id: int = Field(foreign_key="user.id")
     # Story points. Null means "not sized yet", which is a different thing
     # from zero -- a burndown has to be able to tell them apart.
