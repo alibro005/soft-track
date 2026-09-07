@@ -1,4 +1,4 @@
-import { AXIOS_INSTANCE } from '../api/client'
+import { AXIOS_INSTANCE } from '@/api/client'
 
 /**
  * The shape the API hands back in `AttachmentRead.url` and the shape that ends

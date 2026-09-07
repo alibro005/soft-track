@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import { attachmentObjectUrl } from './urls'
+import { attachmentObjectUrl } from '@/attachments/urls'
 
 /**
  * An `<img>` for a file the server will only hand over to an authenticated

@@ -3,10 +3,10 @@ import ReactMarkdown, { type Components } from 'react-markdown'
 import type { PluggableList } from 'unified'
 import remarkGfm from 'remark-gfm'
 
-import { AttachmentImage } from '../attachments/AttachmentImage'
-import { isAttachmentUrl } from '../attachments/urls'
-import type { Mentionable } from './mentions'
-import { remarkMentions } from './remarkMentions'
+import { AttachmentImage } from '@/attachments/AttachmentImage'
+import { isAttachmentUrl } from '@/attachments/urls'
+import type { Mentionable } from '@/markdown/mentions'
+import { remarkMentions } from '@/markdown/remarkMentions'
 
 /**
  * Rendered markdown.

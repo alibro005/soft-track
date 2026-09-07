@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { attachmentMarkdown, formatBytes, isAttachmentUrl } from '../urls'
+import { attachmentMarkdown, formatBytes, isAttachmentUrl } from '@/attachments/urls'
 
 describe('isAttachmentUrl', () => {
   it('matches the shape the API returns', () => {

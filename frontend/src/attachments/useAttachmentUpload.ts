@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react'
 
-import { useUploadAttachmentIssuesIssueIdAttachmentsPost } from '../api/generated/endpoints/attachments/attachments'
-import type { AttachmentRead } from '../api/generated/models'
-import { errorDetail } from '../api/errors'
+import { useUploadAttachmentIssuesIssueIdAttachmentsPost } from '@/api/generated/endpoints/attachments/attachments'
+import type { AttachmentRead } from '@/api/generated/models'
+import { errorDetail } from '@/api/errors'
 
 /**
  * Uploading files against an issue.

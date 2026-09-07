@@ -1,6 +1,6 @@
-import type { AttachmentRead } from '../api/generated/models'
-import { AttachmentImage } from './AttachmentImage'
-import { downloadAttachment, formatBytes } from './urls'
+import type { AttachmentRead } from '@/api/generated/models'
+import { AttachmentImage } from '@/attachments/AttachmentImage'
+import { downloadAttachment, formatBytes } from '@/attachments/urls'
 
 /**
  * The files on an issue or a comment.
