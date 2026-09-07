@@ -21,6 +21,7 @@ export interface IssueRead {
   status: IssueStatus;
   priority: IssuePriority;
   assignee?: UserPublic | null;
+  estimate?: number | null;
   blocked_by_count: number;
   creator: UserPublic;
   labels?: LabelRead[];
