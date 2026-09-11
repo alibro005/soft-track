@@ -1,7 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { type FormEvent, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { useCreateIssueTeamsTeamIdIssuesPost } from '@/api/generated/endpoints/issues/issues'
+import { useSearchSearchGet } from '@/api/generated/endpoints/search/search'
 import { IssuePriority } from '@/api/generated/models'
 import {
   ESTIMATE_SCALE,
@@ -9,15 +11,25 @@ import {
   PRIORITY_ORDER,
 } from '@/issues/issueMeta'
 import { MarkdownEditor } from '@/markdown/lazy'
+import { useDebounced } from '@/search/useDebounced'
 import { activeMembers } from '@/team/members'
 import { useTeamContext } from '@/team/TeamContext'
 import { Icon } from '@/ui/Icon'
 import { Select } from '@/ui/Select'
 
+const MIN_WORDS_TO_SUGGEST = 3
+const MAX_SUGGESTIONS = 3
+const SEARCH_DEBOUNCE_MS = 400
+
+function wordCount(value: string): number {
+  return value.trim().split(/\s+/).filter(Boolean).length
+}
+
 export function NewIssueModal({ onClose }: { onClose: () => void }) {
   const { team, projects, labels, members, cycles, statuses } = useTeamContext()
   const queryClient = useQueryClient()
   const createIssue = useCreateIssueTeamsTeamIdIssuesPost()
+  const navigate = useNavigate()
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -33,8 +45,31 @@ export function NewIssueModal({ onClose }: { onClose: () => void }) {
   const [labelIds, setLabelIds] = useState<number[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  // Resets automatically each time the modal is remounted on open.
+  const [suggestionsDismissed, setSuggestionsDismissed] = useState(false)
+
+  const debouncedTitle = useDebounced(title, SEARCH_DEBOUNCE_MS)
+  const trimmedDebouncedTitle = debouncedTitle.trim()
+  const shouldSuggest =
+    !suggestionsDismissed && wordCount(trimmedDebouncedTitle) >= MIN_WORDS_TO_SUGGEST
+
+  const { data: searchData, isError: searchFailed } = useSearchSearchGet(
+    { q: trimmedDebouncedTitle, limit: MAX_SUGGESTIONS },
+    { query: { enabled: shouldSuggest, retry: false } },
+  )
+
+  const suggestions = searchFailed
+  ? []
+  : (searchData?.items ?? []).slice(0, MAX_SUGGESTIONS)
+
+  const showSuggestions = shouldSuggest && suggestions.length > 0
+
   const toggleLabel = (id: number) => {
     setLabelIds((prev) => (prev.includes(id) ? prev.filter((l) => l !== id) : [...prev, id]))
+  }
+
+  const openSuggestion = (teamKey: string, number: number) => {
+    navigate(`/${teamKey}/issue/${number}`)
   }
 
   const onSubmit = async (event: FormEvent) => {
@@ -98,6 +133,47 @@ export function NewIssueModal({ onClose }: { onClose: () => void }) {
               aria-label="Issue title"
               className="w-full border-none bg-transparent p-0 text-lg font-semibold tracking-tight text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-0"
             />
+
+            {showSuggestions && (
+              <div className="glass mt-2 rounded-panel">
+                <div className="hairline flex items-center justify-between border-b px-3 py-1.5">
+                  <span className="text-[11px] font-medium text-neutral-500">
+                    Possibly similar
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSuggestionsDismissed(true)}
+                    className="btn btn-ghost btn-icon btn-xs text-neutral-400"
+                    aria-label="Dismiss similar issues"
+                  >
+                    <Icon name="close" size={12} />
+                  </button>
+                </div>
+                <ul className="divide-y divide-neutral-900/8">
+                  {suggestions.map((hit) => (
+                    <li key={hit.id}>
+                      <button
+                        type="button"
+                        onClick={() => openSuggestion(hit.team_key, hit.number)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-neutral-900/4 focus:outline-none focus-visible:bg-brand-500/10"
+                      >
+                        <span className="identifier shrink-0 text-xs font-medium text-neutral-400">
+                          {hit.identifier}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-xs font-medium text-neutral-800">
+                          {hit.title}
+                        </span>
+                        <span className="dot shrink-0" style={{ ['--dot' as string]: hit.status.color }} />
+                        <span className="shrink-0 text-[11px] text-neutral-400">
+                          {hit.status.name}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <MarkdownEditor
               value={description}
               onChange={setDescription}
