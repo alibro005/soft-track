@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { parseServerDate } from '@/api/dates'
 
 import type { SearchHit } from '@/api/generated/models'
+import { SearchHitRow } from '@/search/SearchHitRow'
+import { issueHref } from '@/search/issueHref'
 import { PriorityIcon } from '@/issues/PriorityIcon'
 import { Loading } from '@/ui/Loading'
 
@@ -54,41 +56,37 @@ export function SearchResults({
 
       <ul className="divide-y divide-neutral-900/8">
         {hits.map((hit) => {
-          const meta = hit.status
-          return (
-            <li key={hit.id}>
-              <button
-                type="button"
-                onClick={() => navigate(`/${hit.team_key}/issue/${hit.number}`)}
-                className="w-full px-4 py-3 text-left transition-colors hover:bg-neutral-900/4 focus:outline-none focus-visible:bg-brand-500/10"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="dot" style={{ ['--dot' as string]: meta.color }} />
-                  <span className="identifier shrink-0 text-xs font-medium text-neutral-400">
-                    {hit.identifier}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900">
-                    {hit.title}
-                  </span>
-                  <PriorityIcon priority={hit.priority} />
-                </div>
+            const meta = hit.status
 
-                {hit.snippet && (
-                  <p className="mt-1 line-clamp-2 pl-[1.4rem] text-xs leading-relaxed text-neutral-500">
-                    {hit.snippet}
+            return (
+              <li key={hit.id}>
+                <SearchHitRow
+                  hit={hit}
+                  onClick={() => navigate(issueHref(hit.team_key, hit.number))}
+                  leading={
+                    <span
+                      className="dot"
+                      style={{ ['--dot' as string]: meta.color }}
+                    />
+                  }
+                  trailing={<PriorityIcon priority={hit.priority} />}
+                >
+                  {hit.snippet && (
+                    <p className="mt-1 line-clamp-2 px-4 pl-[1.4rem] text-xs leading-relaxed text-neutral-500">
+                      {hit.snippet}
+                    </p>
+                  )}
+
+                  <p className="mt-1 px-4 pl-[1.4rem] text-[11px] text-neutral-400">
+                    matched in {MATCHED_IN_LABEL[hit.matched_in] ?? hit.matched_in} ·{' '}
+                    {formatDistanceToNow(parseServerDate(hit.updated_at), {
+                      addSuffix: true,
+                    })}
                   </p>
-                )}
-
-                <p className="mt-1 pl-[1.4rem] text-[11px] text-neutral-400">
-                  {/* Saying where the match was stops a result whose title has
-                      nothing to do with the query looking like a mistake. */}
-                  matched in {MATCHED_IN_LABEL[hit.matched_in] ?? hit.matched_in} ·{' '}
-                  {formatDistanceToNow(parseServerDate(hit.updated_at), { addSuffix: true })}
-                </p>
-              </button>
-            </li>
-          )
-        })}
+                </SearchHitRow>
+              </li>
+            )
+          })}
       </ul>
     </div>
   )

@@ -127,7 +127,7 @@ export default function BoardPage() {
         navigate(`/${teamKey}`)
         return
       }
-    overlays.closeTop()
+      overlays.closeTop()
     },
     openNewIssue,
     openShortcuts,

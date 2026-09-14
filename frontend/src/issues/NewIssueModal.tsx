@@ -13,6 +13,7 @@ import {
 } from '@/issues/issueMeta'
 import { MarkdownEditor } from '@/markdown/lazy'
 import { SearchHitRow } from '@/search/SearchHitRow'
+import { issueHref } from '@/search/issueHref'
 import { useDebounced } from '@/search/useDebounced'
 import { activeMembers } from '@/team/members'
 import { useTeamContext } from '@/team/TeamContext'
@@ -63,9 +64,10 @@ export function NewIssueModal({ onClose, issuePanelOpen }: { onClose: () => void
   }
 
   const openSuggestion = (teamKey: string, number: number, issueId: number) => {
+    if (teamKey !== team.key) return
     setSelectedSuggestionIndex(-1)
 
-    navigate(`/${teamKey}/issue/${number}`, {
+    navigate(issueHref(teamKey, number), {
       state: { issueId },
     })
   }
@@ -157,13 +159,15 @@ export function NewIssueModal({ onClose, issuePanelOpen }: { onClose: () => void
                         openSuggestion(hit.team_key, hit.number, hit.id)
                       }
                     }
-                  }}
-              placeholder="Issue title"
-              aria-label="Issue title"
-              aria-controls="similar-issues-list"
-              aria-expanded={showSuggestions}
-              className="w-full border-none bg-transparent p-0 text-lg font-semibold tracking-tight text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-0"
-            />
+                }}
+                placeholder="Issue title"
+                aria-label="Issue title"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-controls="similar-issues-list"
+                aria-expanded={showSuggestions}
+                className="w-full border-none bg-transparent p-0 text-lg font-semibold tracking-tight text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-0"
+              />
 
             {showSuggestions && (
               <div className="sr-only" aria-live="polite">
@@ -201,6 +205,15 @@ export function NewIssueModal({ onClose, issuePanelOpen }: { onClose: () => void
                         hit={hit}
                         selected={selectedSuggestionIndex === index}
                         onClick={() => openSuggestion(hit.team_key, hit.number, hit.id)}
+                        trailing={
+                          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-neutral-900/5 px-2 py-1 text-[11px] font-medium text-neutral-500">
+                            <span
+                              className="dot"
+                              style={{ ['--dot' as string]: hit.status.color }}
+                            />
+                            {hit.status.name}
+                          </span>
+                        }
                       />
                     </li>
                   ))}

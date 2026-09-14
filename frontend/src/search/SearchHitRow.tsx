@@ -1,41 +1,44 @@
-import type { SearchHit } from '@/api/generated/models'
+import type { ReactNode } from 'react';
+import type { SearchHit } from '@/api/generated/models';
 
 export function SearchHitRow({
   hit,
   onClick,
   selected = false,
+  leading,
+  trailing,
+  children,
 }: {
-  hit: SearchHit
-  onClick: () => void
-  selected?: boolean
+  hit: SearchHit;
+  onClick: () => void;
+  selected?: boolean;
+  leading?: ReactNode;
+  trailing?: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-        selected
-          ? 'bg-brand-500/10'
-          : 'hover:bg-neutral-900/4'
+        selected ? "bg-brand-500/10" : "hover:bg-neutral-900/4"
       } focus:outline-none focus-visible:bg-brand-500/10`}
     >
-      <span className="identifier shrink-0 text-xs font-medium text-neutral-400">
-        {hit.identifier}
-      </span>
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        {leading}
 
-      <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900">
-        {hit.title}
-      </span>
+        <span className="identifier shrink-0 text-xs font-medium text-neutral-400">
+          {hit.identifier}
+        </span>
 
-      <span
-        className="flex shrink-0 items-center gap-1.5 rounded-full bg-neutral-900/5 px-2 py-1 text-[11px] font-medium text-neutral-500"
-      >
-        <span
-          className="dot"
-          style={{ ['--dot' as string]: hit.status.color }}
-        />
-        {hit.status.name}
-      </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900">
+          {hit.title}
+        </span>
+
+        {trailing}
+      </div>
+
+      {children}
     </button>
-  )
+  );
 }
