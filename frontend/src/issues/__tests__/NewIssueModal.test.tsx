@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { StatusRead, TeamMemberRead } from '@/api/generated/models'
@@ -100,18 +101,20 @@ function Harness({ onClose, onShortcut }: { onClose: () => void; onShortcut: () 
     openShortcuts: onShortcut,
     suppressed: false,
   })
-  return open ? <NewIssueModal onClose={close} /> : null
+  return open ? <NewIssueModal onClose={close} issuePanelOpen={false} /> : null
 }
 
 function renderModal() {
   const onClose = vi.fn()
   const onShortcut = vi.fn()
   render(
-    <QueryClientProvider client={new QueryClient()}>
-      <TeamProvider value={TEAM}>
-        <Harness onClose={onClose} onShortcut={onShortcut} />
-      </TeamProvider>
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={new QueryClient()}>
+        <TeamProvider value={TEAM}>
+          <Harness onClose={onClose} onShortcut={onShortcut} />
+        </TeamProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
   )
   return { onClose, onShortcut, user: userEvent.setup() }
 }
@@ -139,7 +142,7 @@ describe('NewIssueModal', () => {
   it('submits the entered values to the create mutation, then closes', async () => {
     const { onClose, user } = renderModal()
 
-    await user.type(screen.getByRole('textbox', { name: 'Issue title' }), '  Fix the login form ')
+    await user.type(screen.getByRole('combobox', { name: 'Issue title' }), '  Fix the login form ')
     await user.type(screen.getByRole('textbox', { name: 'Description' }), 'Steps to reproduce')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'In Progress')
     await user.selectOptions(screen.getByRole('combobox', { name: 'Priority' }), 'high')
@@ -168,7 +171,7 @@ describe('NewIssueModal', () => {
   it('closes on Escape without creating anything', async () => {
     const { onClose, user } = renderModal()
 
-    await user.type(screen.getByRole('textbox', { name: 'Issue title' }), 'Half typed')
+    await user.type(screen.getByRole('combobox', { name: 'Issue title' }), 'Half typed')
     await user.keyboard('{Escape}')
 
     expect(onClose).toHaveBeenCalledTimes(1)
@@ -181,11 +184,11 @@ describe('NewIssueModal', () => {
 
     // c opens a new issue and ? opens the cheatsheet -- from the board. In a
     // title they are just letters, which is the whole point of the guard.
-    await user.type(screen.getByRole('textbox', { name: 'Issue title' }), 'Cannot log in? see /docs')
+    await user.type(screen.getByRole('combobox', { name: 'Issue title' }), 'Cannot log in? see /docs')
     await user.type(screen.getByRole('textbox', { name: 'Description' }), 'c ? /')
 
     expect(onShortcut).not.toHaveBeenCalled()
-    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Issue title' }).value).toBe(
+    expect(screen.getByRole<HTMLInputElement>('combobox', { name: 'Issue title' }).value).toBe(
       'Cannot log in? see /docs',
     )
   })
@@ -193,7 +196,7 @@ describe('NewIssueModal', () => {
   it('sends nothing for the fields left untouched', async () => {
     const { user } = renderModal()
 
-    await user.type(screen.getByRole('textbox', { name: 'Issue title' }), 'Just a title')
+    await user.type(screen.getByRole('combobox', { name: 'Issue title' }), 'Just a title')
     await user.click(screen.getByRole('button', { name: 'Create issue' }))
 
     // Empty status and cycle are omitted rather than guessed, which is what
@@ -221,10 +224,10 @@ describe('NewIssueModal', () => {
     const submit = () => screen.getByRole<HTMLButtonElement>('button', { name: 'Create issue' })
     expect(submit().disabled).toBe(true)
 
-    await user.type(screen.getByRole('textbox', { name: 'Issue title' }), '   ')
+    await user.type(screen.getByRole('combobox', { name: 'Issue title' }), '   ')
     expect(submit().disabled).toBe(true)
 
-    await user.type(screen.getByRole('textbox', { name: 'Issue title' }), 'Real')
+    await user.type(screen.getByRole('combobox', { name: 'Issue title' }), 'Real')
     expect(submit().disabled).toBe(false)
   })
 
@@ -241,7 +244,7 @@ describe('NewIssueModal', () => {
     mutateAsync.mockRejectedValue(new Error('500'))
     const { onClose, user } = renderModal()
 
-    await user.type(screen.getByRole('textbox', { name: 'Issue title' }), 'Fix the login form')
+    await user.type(screen.getByRole('combobox', { name: 'Issue title' }), 'Fix the login form')
     await user.type(screen.getByRole('textbox', { name: 'Description' }), 'Steps to reproduce')
     await user.click(screen.getByRole('button', { name: 'Create issue' }))
 
