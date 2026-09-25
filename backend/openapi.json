@@ -1508,6 +1508,101 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Update Project",
+        "description": "Rename, re-date, re-lead or move a project through its states.\n\nSetting `archived` retires it from pickers without touching the issues\nalready in it.",
+        "operationId": "update_project_projects__project_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Delete Project",
+        "description": "Delete a project. Its issues are kept and left with no project.\n\nSaved views that filtered on it stop filtering on it, and automation rules\nconditioned on it are switched off rather than widened to every issue.",
+        "operationId": "delete_project_projects__project_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/teams/{team_id}/labels": {
@@ -1859,6 +1954,119 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{team_id}/issues/bulk-update": {
+      "post": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Bulk Update Issues",
+        "description": "Apply one set of changes to up to 200 of the team's issues.\n\nTransactional: every issue changes or none does. Returns the issues as the\nbatch left them, in the order they were asked for.",
+        "operationId": "bulk_update_issues_teams__team_id__issues_bulk_update_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueBulkUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IssueRead"
+                  },
+                  "title": "Response Bulk Update Issues Teams  Team Id  Issues Bulk Update Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{team_id}/issues/bulk-delete": {
+      "post": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Bulk Delete Issues",
+        "description": "Delete up to 200 of the team's issues, all of them or none.\n\nA POST rather than a DELETE with a body, which too many clients and\nproxies drop. Each issue goes the way a single delete takes it --\nattachments with it, sub-issues promoted.",
+        "operationId": "bulk_delete_issues_teams__team_id__issues_bulk_delete_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueBulkDelete"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -6426,6 +6634,125 @@
         "title": "InviteRead",
         "description": "A pending invitation, as an admin of the team (or its recipient) sees it.\n\nCarries the token because there is no mail server: the link is copied out\nof this response and sent by whatever the team already uses. Only ever\nreturned to a team admin or to the person the invite is addressed to."
       },
+      "IssueBulkChanges": {
+        "properties": {
+          "status_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Id"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssuePriority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assignee_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee Id"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "cycle_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle Id"
+          },
+          "add_label_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Add Label Ids",
+            "default": []
+          },
+          "remove_label_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Remove Label Ids",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "IssueBulkChanges",
+        "description": "What to do to every issue in the batch. Omitted fields are left alone.\n\nThe same unset-versus-null distinction as `IssueUpdate`: an explicit null\nassignee, project or cycle clears it on every issue."
+      },
+      "IssueBulkDelete": {
+        "properties": {
+          "issue_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Issue Ids",
+            "description": "Between 1 and 200 issues, all on this team."
+          }
+        },
+        "type": "object",
+        "required": [
+          "issue_ids"
+        ],
+        "title": "IssueBulkDelete"
+      },
+      "IssueBulkUpdate": {
+        "properties": {
+          "issue_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Issue Ids",
+            "description": "Between 1 and 200 issues, all on this team."
+          },
+          "changes": {
+            "$ref": "#/components/schemas/IssueBulkChanges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "issue_ids",
+          "changes"
+        ],
+        "title": "IssueBulkUpdate"
+      },
       "IssueCreate": {
         "properties": {
           "title": {
@@ -7671,6 +7998,7 @@
         "properties": {
           "name": {
             "type": "string",
+            "minLength": 1,
             "title": "Name"
           },
           "description": {
@@ -7688,6 +8016,33 @@
             "type": "string",
             "title": "Color",
             "default": "#6366f1"
+          },
+          "lead_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Id"
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Date"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ProjectState",
+            "default": "planned"
           }
         },
         "type": "object",
@@ -7725,6 +8080,36 @@
             "type": "string",
             "title": "Color"
           },
+          "lead_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Id"
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Date"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ProjectState"
+          },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -7737,9 +8122,107 @@
           "team_id",
           "name",
           "color",
+          "state",
+          "archived",
           "created_at"
         ],
         "title": "ProjectRead"
+      },
+      "ProjectState": {
+        "type": "string",
+        "enum": [
+          "planned",
+          "in_progress",
+          "completed",
+          "cancelled"
+        ],
+        "title": "ProjectState",
+        "description": "Where a project -- which is what SoftTrack calls an epic -- is in its life.\n\nSet by hand, like CycleState and for the same reason: \"every issue is\ndone\" is evidence a project is finished, not a decision that it is. A\nproject can be complete with a stray follow-up still open, or have every\nissue closed and still be waiting on a launch."
+      },
+      "ProjectUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "lead_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Id"
+          },
+          "target_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Date"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived"
+          }
+        },
+        "type": "object",
+        "title": "ProjectUpdate",
+        "description": "Every field optional: renaming, retiring and re-dating are separate\ngestures and each sends only what it changed. Send `lead_id` or\n`target_date` as null to clear it."
       },
       "PullRequestState": {
         "type": "string",
