@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom'
 import { parseServerDate } from '@/api/dates'
 
 import type { SearchHit } from '@/api/generated/models'
@@ -24,14 +23,19 @@ export function SearchResults({
   hits,
   total,
   isLoading,
+  onOpen,
 }: {
   query: string
   hits: SearchHit[]
   total: number
   isLoading: boolean
+  /**
+   * Go to a result. The board's to do: a result opens the issue's page
+   * (#112), and the board keeps this search for when you come back.
+   */
+  onOpen: (hit: SearchHit) => void
 }) {
   const { t } = useTranslation('search')
-  const navigate = useNavigate()
 
   if (isLoading) {
     return <Loading label={t('searching')} />
@@ -72,7 +76,24 @@ export function SearchResults({
 
       <ul className="divide-y divide-neutral-900/8">
         {hits.map((hit) => {
-            const meta = hit.status
+          const meta = hit.status
+          return (
+            <li key={hit.id}>
+              <button
+                type="button"
+                onClick={() => onOpen(hit)}
+                className="w-full px-4 py-3 text-left transition-colors hover:bg-neutral-900/4 focus:outline-none focus-visible:bg-brand-500/10"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="dot" style={{ ['--dot' as string]: meta.color }} />
+                  <span className="identifier shrink-0 text-xs font-medium text-neutral-400">
+                    {hit.identifier}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900">
+                    {hit.title}
+                  </span>
+                  <PriorityIcon priority={hit.priority} />
+                </div>
 
             return (
               <li key={hit.id}>
