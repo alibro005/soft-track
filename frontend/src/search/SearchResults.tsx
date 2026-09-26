@@ -2,7 +2,6 @@ import { parseServerDate } from '@/api/dates'
 
 import type { SearchHit } from '@/api/generated/models'
 import { SearchHitRow } from '@/search/SearchHitRow'
-import { issueHref } from '@/search/issueHref'
 import { Trans, userText, useTranslation } from '@/i18n'
 import { formatRelative } from '@/i18n/format'
 import { PriorityIcon } from '@/issues/PriorityIcon'
@@ -77,29 +76,11 @@ export function SearchResults({
       <ul className="divide-y divide-neutral-900/8">
         {hits.map((hit) => {
           const meta = hit.status
-          return (
-            <li key={hit.id}>
-              <button
-                type="button"
-                onClick={() => onOpen(hit)}
-                className="w-full px-4 py-3 text-left transition-colors hover:bg-neutral-900/4 focus:outline-none focus-visible:bg-brand-500/10"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="dot" style={{ ['--dot' as string]: meta.color }} />
-                  <span className="identifier shrink-0 text-xs font-medium text-neutral-400">
-                    {hit.identifier}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-900">
-                    {hit.title}
-                  </span>
-                  <PriorityIcon priority={hit.priority} />
-                </div>
-
             return (
               <li key={hit.id}>
                 <SearchHitRow
                   hit={hit}
-                  onClick={() => navigate(issueHref(hit.team_key, hit.number))}
+                  onClick={() => onOpen(hit)}
                   leading={
                     <span
                       className="dot"
