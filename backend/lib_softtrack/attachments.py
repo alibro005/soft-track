@@ -21,14 +21,15 @@ from pathlib import PurePosixPath
 from typing import Optional
 from urllib.parse import quote
 
-from fastapi import HTTPException, UploadFile
+from fastapi import UploadFile
 from sqlmodel import Session, select
 
 from lib_identity.models.identity import UserPublic
-from lib_softtrack.models.attachments import AttachmentRead
+from lib_softtrack.models.attachments import AttachmentPreview, AttachmentRead
 from lib_softtrack.storage import ObjectNotFound, Storage
 from lib_softtrack.tables import Attachment, Comment, Issue, User
 from lib_softtrack.teams import require_team_member
+from lib_utils.errors import ErrorCode, api_error
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,38 @@ ALLOWED_TYPES: dict[str, str] = {
     ".json": "application/json",
     ".patch": "text/plain",
     ".diff": "text/plain",
+    # Source and config files (#101), stored and served as plain text -- the
+    # one type a browser will never execute or render as markup. `.html`,
+    # `.svg` and `.xml` stay out: plain text is the only way they could be
+    # served safely, and then a preview is not what anybody uploaded them for.
+    **{
+        extension: "text/plain"
+        for extension in (
+            ".py",
+            ".js",
+            ".jsx",
+            ".ts",
+            ".tsx",
+            ".go",
+            ".rs",
+            ".java",
+            ".kt",
+            ".rb",
+            ".php",
+            ".c",
+            ".h",
+            ".cpp",
+            ".cs",
+            ".swift",
+            ".sql",
+            ".css",
+            ".yaml",
+            ".yml",
+            ".toml",
+            ".ini",
+            ".cfg",
+        )
+    },
     ".zip": "application/zip",
     ".mp4": "video/mp4",
     ".webm": "video/webm",
@@ -64,6 +97,14 @@ ALLOWED_TYPES: dict[str, str] = {
 #: The types rendered inline rather than downloaded. Every one is an image
 #: format a browser decodes as an image and nothing else.
 IMAGE_TYPES = frozenset({"image/png", "image/jpeg", "image/gif", "image/webp"})
+
+#: Types previewed as text (#101). Every one of them is *served* as
+#: `text/plain` whatever it is stored as -- see `served_type`.
+TEXT_TYPES = frozenset({"text/plain", "text/markdown", "text/csv", "application/json"})
+
+#: What a text preview is served as: plain, UTF-8, and never anything a
+#: browser renders as markup.
+PLAIN_TEXT = "text/plain; charset=utf-8"
 
 #: First bytes each image format must start with. Checked because "screenshot
 #: of the bug" is the whole point of this feature and a file that is not
@@ -76,6 +117,10 @@ _IMAGE_SIGNATURES: dict[str, tuple[bytes, ...]] = {
     "image/gif": (b"GIF87a", b"GIF89a"),
     "image/webp": (b"RIFF",),
 }
+
+#: Where a PDF's header may sit. The format allows junk before it and readers
+#: tolerate up to a kilobyte of it, so the check does too.
+_PDF_HEADER_WINDOW = 1024
 
 #: Long enough that a name is still recognisable, short enough that it cannot
 #: be used to bloat a row or a response header.
@@ -119,14 +164,38 @@ def _storage_key(extension: str) -> str:
     return f"{token[:2]}/{token}{extension}"
 
 
+def preview_kind(content_type: str) -> Optional[AttachmentPreview]:
+    """How the client may show this file without downloading it, if at all."""
+    if content_type in IMAGE_TYPES:
+        return AttachmentPreview.image
+    if content_type == "application/pdf":
+        return AttachmentPreview.pdf
+    if content_type in TEXT_TYPES:
+        return AttachmentPreview.text
+    return None
+
+
+def served_type(attachment: Attachment) -> str:
+    """The Content-Type the bytes go out with.
+
+    The stored type for everything except text, which always goes out as
+    `text/plain; charset=utf-8`. A Markdown or JSON file served as itself is
+    something a browser may decide to render; plain text is the one type it
+    only ever displays. The filename still says what the file is.
+    """
+    if preview_kind(attachment.content_type) == AttachmentPreview.text:
+        return PLAIN_TEXT
+    return attachment.content_type
+
+
 def content_disposition(attachment: Attachment) -> str:
-    """`inline` for images, `attachment` for everything else.
+    """`inline` for what can be previewed, `attachment` for everything else.
 
     Both spellings of the filename are sent: the bare `filename=` for clients
     that predate RFC 5987 and `filename*=` for every name that is not ASCII,
     which is most people's names for most files.
     """
-    disposition = "inline" if attachment.content_type in IMAGE_TYPES else "attachment"
+    disposition = "inline" if preview_kind(attachment.content_type) else "attachment"
     name = attachment.filename
     ascii_name = name.encode("ascii", "replace").decode("ascii").replace('"', "'")
     return (
@@ -144,6 +213,7 @@ def to_read(attachment: Attachment, uploader: User) -> AttachmentRead:
         content_type=attachment.content_type,
         size_bytes=attachment.size_bytes,
         is_image=attachment.content_type in IMAGE_TYPES,
+        preview=preview_kind(attachment.content_type),
         url=f"/attachments/{attachment.id}/content",
         uploaded_by=UserPublic.model_validate(uploader),
         created_at=attachment.created_at,
@@ -165,7 +235,9 @@ def _expand(session: Session, attachments: list[Attachment]) -> list[AttachmentR
 def _issue_or_404(session: Session, issue_id: int) -> Issue:
     issue = session.get(Issue, issue_id)
     if issue is None:
-        raise HTTPException(status_code=404, detail="Issue not found")
+        raise api_error(
+            status_code=404, code=ErrorCode.issue_not_found, detail="Issue not found"
+        )
     return issue
 
 
@@ -179,7 +251,11 @@ def get_attachment_for_read(
     """
     attachment = session.get(Attachment, attachment_id)
     if attachment is None:
-        raise HTTPException(status_code=404, detail="Attachment not found")
+        raise api_error(
+            status_code=404,
+            code=ErrorCode.attachment_not_found,
+            detail="Attachment not found",
+        )
     issue = _issue_or_404(session, attachment.issue_id)
     require_team_member(issue.team_id, current_user, session)
     return attachment
@@ -204,12 +280,17 @@ def create_attachment(
 
     filename = safe_filename(upload.filename or "")
     if not filename:
-        raise HTTPException(status_code=422, detail="That file has no usable name.")
+        raise api_error(
+            status_code=422,
+            code=ErrorCode.attachment_name_missing,
+            detail="That file has no usable name.",
+        )
 
     content_type = content_type_for(filename)
     if content_type is None:
-        raise HTTPException(
+        raise api_error(
             status_code=415,
+            code=ErrorCode.attachment_type_not_allowed,
             detail=(
                 f"{PurePosixPath(filename).suffix or 'That file type'} is not an "
                 "accepted attachment type. Accepted: "
@@ -219,12 +300,18 @@ def create_attachment(
         )
 
     if not data:
-        raise HTTPException(status_code=422, detail="That file is empty.")
+        raise api_error(
+            status_code=422, code=ErrorCode.file_empty, detail="That file is empty."
+        )
 
     signatures = _IMAGE_SIGNATURES.get(content_type)
-    if signatures and not data.startswith(signatures):
-        raise HTTPException(
+    not_a_pdf = (
+        content_type == "application/pdf" and b"%PDF-" not in data[:_PDF_HEADER_WINDOW]
+    )
+    if (signatures and not data.startswith(signatures)) or not_a_pdf:
+        raise api_error(
             status_code=422,
+            code=ErrorCode.attachment_content_mismatch,
             detail=f"{filename} is not a valid {content_type.split('/')[1].upper()}.",
         )
 
@@ -315,8 +402,9 @@ def claim_for_comment(
             or attachment.issue_id != comment.issue_id
             or attachment.comment_id is not None
         ):
-            raise HTTPException(
+            raise api_error(
                 status_code=400,
+                code=ErrorCode.attachment_not_attachable,
                 detail=f"Attachment {attachment_id} cannot be attached to this comment.",
             )
         attachment.comment_id = comment.id
@@ -342,6 +430,21 @@ def take_keys_for_issue(session: Session, issue_id: int) -> list[str]:
     """
     attachments = session.exec(
         select(Attachment).where(Attachment.issue_id == issue_id)
+    ).all()
+    keys = [attachment.storage_key for attachment in attachments]
+    for attachment in attachments:
+        session.delete(attachment)
+    return keys
+
+
+def take_keys_for_comment(session: Session, comment_id: int) -> list[str]:
+    """Delete a comment's attachment rows, returning the keys still to purge.
+
+    Called while deleting a comment (#93), for the reasons and in the order
+    `take_keys_for_issue` gives: rows now, bytes after the commit.
+    """
+    attachments = session.exec(
+        select(Attachment).where(Attachment.comment_id == comment_id)
     ).all()
     keys = [attachment.storage_key for attachment in attachments]
     for attachment in attachments:

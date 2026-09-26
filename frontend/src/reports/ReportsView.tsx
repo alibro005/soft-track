@@ -2,13 +2,17 @@ import { useState } from 'react'
 
 import {
   useCycleBurndownCyclesCycleIdBurndownGet,
+  useCycleTimeSpentCyclesCycleIdTimeSpentGet,
   useTeamCreatedVsResolvedTeamsTeamIdCreatedVsResolvedGet,
   useTeamCumulativeFlowTeamsTeamIdCumulativeFlowGet,
+  useTeamTimeSpentTeamsTeamIdTimeSpentGet,
   useTeamVelocityTeamsTeamIdVelocityGet,
 } from '@/api/generated/endpoints/reports/reports'
+import { useTranslation } from '@/i18n'
 import { BurndownChart } from '@/reports/BurndownChart'
 import { CreatedResolvedChart } from '@/reports/CreatedResolvedChart'
 import { FlowChart } from '@/reports/FlowChart'
+import { TimeSpentChart } from '@/reports/TimeSpentChart'
 import { VelocityChart } from '@/reports/VelocityChart'
 import { useTeamContext } from '@/team/useTeamContext'
 import { Select } from '@/ui/Select'
@@ -16,6 +20,7 @@ import { Select } from '@/ui/Select'
 const WINDOWS = [14, 30, 90] as const
 
 export function ReportsView() {
+  const { t } = useTranslation(['reports', 'common'])
   const { team, cycles } = useTeamContext()
 
   // Default to the cycle a team would actually want to look at.
@@ -37,6 +42,11 @@ export function ReportsView() {
     team.id,
     { days },
   )
+  // Time spent (#102): in the chosen cycle, and over the chosen window.
+  const cycleTime = useCycleTimeSpentCyclesCycleIdTimeSpentGet(selected?.id ?? 0, {
+    query: { enabled: Boolean(selected) },
+  })
+  const windowTime = useTeamTimeSpentTeamsTeamIdTimeSpentGet(team.id, { days })
 
   return (
     <div className="scroll-thin h-full overflow-y-auto">
@@ -47,9 +57,9 @@ export function ReportsView() {
           value={selected?.id ?? ''}
           onChange={(e) => setCycleId(e.target.value ? Number(e.target.value) : null)}
           disabled={cycles.length === 0}
-          aria-label="Cycle"
+          aria-label={t('view.cycle')}
         >
-          {cycles.length === 0 && <option value="">No cycles</option>}
+          {cycles.length === 0 && <option value="">{t('view.noCycles')}</option>}
           {cycles.map((cycle) => (
             <option key={cycle.id} value={cycle.id}>
               {cycle.display_name}
@@ -57,7 +67,7 @@ export function ReportsView() {
           ))}
         </Select>
 
-        <div className="segmented" role="tablist" aria-label="Window">
+        <div className="segmented" role="tablist" aria-label={t('view.window')}>
           {WINDOWS.map((window) => (
             <button
               key={window}
@@ -68,7 +78,7 @@ export function ReportsView() {
               onClick={() => setDays(window)}
               className="segmented-item"
             >
-              {window}d
+              {t('view.windowDays', { days: window })}
             </button>
           ))}
         </div>
@@ -79,11 +89,9 @@ export function ReportsView() {
           <BurndownChart data={burndown.data} />
         ) : (
           <figure className="glass rounded-panel p-4">
-            <h3 className="text-sm font-semibold text-neutral-900">Burndown</h3>
+            <h3 className="text-sm font-semibold text-neutral-900">{t('view.burndown')}</h3>
             <p className="py-10 text-center text-sm text-neutral-400">
-              {cycles.length === 0
-                ? 'Create a cycle to see a burndown.'
-                : 'Loading…'}
+              {cycles.length === 0 ? t('view.burndownNoCycles') : t('common:loading')}
             </p>
           </figure>
         )}
@@ -91,12 +99,25 @@ export function ReportsView() {
         {velocity.data && <VelocityChart data={velocity.data} />}
         {flow.data && <FlowChart data={flow.data} />}
         {createdResolved.data && <CreatedResolvedChart data={createdResolved.data} />}
+        {selected && cycleTime.data && (
+          <TimeSpentChart
+            title={t('view.cycleTime.title', { cycle: selected.display_name })}
+            note={t('view.cycleTime.note')}
+            data={cycleTime.data}
+          />
+        )}
+        {windowTime.data && (
+          <TimeSpentChart
+            title={t('view.windowTime.title', { count: days })}
+            note={t('view.windowTime.note')}
+            data={windowTime.data}
+          />
+        )}
       </div>
 
       <p className="mt-3 px-1 text-xs text-neutral-400">
         {/* Say why an empty chart is empty, rather than letting it look broken. */}
-        Charts are built from recorded issue history, so they begin from the day
-        history started being kept — earlier activity cannot be reconstructed.
+        {t('view.history')}
       </p>
     </div>
   )

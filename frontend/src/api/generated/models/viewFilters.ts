@@ -5,7 +5,9 @@
  * An open-source, self-hostable issue tracker inspired by Linear.
  * OpenAPI spec version: 0.1.0
  */
+import type { DueFilter } from './dueFilter';
 import type { IssuePriority } from './issuePriority';
+import type { IssueType } from './issueType';
 
 /**
  * What a view narrows the issue list to.
@@ -24,4 +26,6 @@ export interface ViewFilters {
   label_id?: number | null;
   project_id?: number | null;
   cycle_id?: number | null;
+  due?: DueFilter | null;
+  type?: IssueType | null;
 }

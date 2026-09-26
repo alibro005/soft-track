@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Response
 from sqlmodel import Session
 
+from app_softtrack.guards import team_writer
 from lib_identity.identity import get_current_user
 from lib_softtrack import invites as invites_service
 from lib_softtrack.models.invites import InviteCreate, InvitePreview, InviteRead
 from lib_softtrack.models.teams import TeamRead
 from lib_softtrack.tables import User
+from lib_utils.mailer import get_mailer
 from web import get_session
 
 # No prefix: the team-scoped routes hang off /teams and the two the invitee
@@ -14,14 +16,27 @@ from web import get_session
 router = APIRouter(tags=["invites"])
 
 
-@router.post("/teams/{team_id}/invites", response_model=InviteRead)
+@router.post(
+    "/teams/{team_id}/invites", response_model=InviteRead, dependencies=[team_writer]
+)
 def create_invite(
     team_id: int,
     payload: InviteCreate,
+    background: BackgroundTasks,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    return invites_service.create_invite(session, current_user, team_id, payload)
+    """Invite an address to the team, or refresh an existing invitation.
+
+    The response carries the link to copy, as it always has. With
+    `send_email` it is also emailed to the address, after the response.
+    """
+    invite, message = invites_service.create_invite(
+        session, current_user, team_id, payload
+    )
+    if message is not None:
+        background.add_task(get_mailer().send, *message)
+    return invite
 
 
 @router.get("/teams/{team_id}/invites", response_model=list[InviteRead])
@@ -33,7 +48,9 @@ def list_invites(
     return invites_service.list_invites(session, current_user, team_id)
 
 
-@router.delete("/teams/{team_id}/invites/{invite_id}", status_code=204)
+@router.delete(
+    "/teams/{team_id}/invites/{invite_id}", status_code=204, dependencies=[team_writer]
+)
 def revoke_invite(
     team_id: int,
     invite_id: int,

@@ -7,6 +7,8 @@ import {
   useBulkUpdateIssuesTeamsTeamIdIssuesBulkUpdatePost,
 } from '@/api/generated/endpoints/issues/issues'
 import type { IssueBulkChanges, TeamRead } from '@/api/generated/models'
+import { useTranslation } from '@/i18n'
+import { invalidateProjects } from '@/team/projects'
 
 /**
  * Change or delete many issues in one request.
@@ -19,6 +21,7 @@ import type { IssueBulkChanges, TeamRead } from '@/api/generated/models'
  * have changed more than the payload said.
  */
 export function useBulkEdit(team: TeamRead | undefined) {
+  const { t } = useTranslation(['board', 'common'])
   const queryClient = useQueryClient()
   const bulkUpdate = useBulkUpdateIssuesTeamsTeamIdIssuesBulkUpdatePost()
   const bulkDelete = useBulkDeleteIssuesTeamsTeamIdIssuesBulkDeletePost()
@@ -30,6 +33,7 @@ export function useBulkEdit(team: TeamRead | undefined) {
     queryClient.invalidateQueries({ queryKey: [`/teams/${team.id}/issues`] })
     queryClient.invalidateQueries({ queryKey: [`/teams/${team.id}/estimates`] })
     queryClient.invalidateQueries({ queryKey: [`/teams/${team.id}/cycles`] })
+    invalidateProjects(queryClient, team.id)
     queryClient.invalidateQueries({
       predicate: (query) =>
         typeof query.queryKey[0] === 'string' && query.queryKey[0].startsWith('/issues/'),
@@ -47,13 +51,13 @@ export function useBulkEdit(team: TeamRead | undefined) {
         })
         return true
       } catch (err: unknown) {
-        setError(errorDetail(err, 'Could not update those issues.'))
+        setError(errorDetail(err, t('bulk.errors.update')))
         return false
       } finally {
         refresh()
       }
     },
-    [bulkUpdate, refresh, team],
+    [bulkUpdate, refresh, t, team],
   )
 
   const remove = useCallback(
@@ -64,13 +68,13 @@ export function useBulkEdit(team: TeamRead | undefined) {
         await bulkDelete.mutateAsync({ teamId: team.id, data: { issue_ids: [...issueIds] } })
         return true
       } catch (err: unknown) {
-        setError(errorDetail(err, 'Could not delete those issues.'))
+        setError(errorDetail(err, t('bulk.errors.delete')))
         return false
       } finally {
         refresh()
       }
     },
-    [bulkDelete, refresh, team],
+    [bulkDelete, refresh, t, team],
   )
 
   return {

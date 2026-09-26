@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { IssueRead } from '@/api/generated/models'
+import { useTranslation } from '@/i18n'
 import { Icon } from '@/ui/Icon'
+import { useFocusTrap } from '@/ui/useFocusTrap'
 
 export type Command = {
   id: string
@@ -29,6 +31,8 @@ export function CommandPalette({
   issues: IssueRead[]
   onOpenIssue: (issue: IssueRead) => void
 }) {
+  const { t } = useTranslation('keyboard')
+  const dialogRef = useFocusTrap<HTMLDivElement>()
   const [query, setQuery] = useState('')
   const [rawHighlighted, setHighlighted] = useState(0)
   const listRef = useRef<HTMLUListElement>(null)
@@ -47,8 +51,11 @@ export function CommandPalette({
       .map((issue) => ({
         id: `issue-${issue.id}`,
         label: issue.title,
-        hint: `${issue.identifier} · ${issue.status.name}`,
-        group: 'Issues',
+        hint: t('palette.issueHint', {
+          identifier: issue.identifier,
+          status: issue.status.name,
+        }),
+        group: t('palette.issuesGroup'),
         run: () => onOpenIssue(issue),
       }))
 
@@ -57,7 +64,7 @@ export function CommandPalette({
     )
 
     return [...matching, ...issueCommands]
-  }, [query, commands, issues, onOpenIssue])
+  }, [query, commands, issues, onOpenIssue, t])
 
   // Clamped during render rather than corrected in an effect: typing can
   // shorten the list under a highlight that is already past the end, and a
@@ -105,7 +112,10 @@ export function CommandPalette({
     >
       <div
         role="dialog"
-        aria-label="Command palette"
+        ref={dialogRef}
+        aria-modal="true"
+        tabIndex={-1}
+        aria-label={t('palette.label')}
         onClick={(e) => e.stopPropagation()}
         className="pop-in glass-strong w-full max-w-lg overflow-hidden rounded-panel"
       >
@@ -120,8 +130,8 @@ export function CommandPalette({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Jump to an issue, or type a command…"
-            aria-label="Command"
+            placeholder={t('palette.placeholder')}
+            aria-label={t('palette.inputLabel')}
             className="w-full bg-transparent py-3.5 pl-11 pr-4 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none"
           />
         </div>
@@ -157,7 +167,7 @@ export function CommandPalette({
 
           {results.length === 0 && (
             <li className="px-4 py-6 text-center text-sm text-neutral-400">
-              Nothing matches “{query}”.
+              {t('palette.noMatches', { query })}
             </li>
           )}
         </ul>
@@ -165,13 +175,14 @@ export function CommandPalette({
         <div className="hairline flex items-center gap-3 border-t px-4 py-2 text-[11px] text-neutral-400">
           <span className="flex items-center gap-1">
             <kbd className="kbd">↑</kbd>
-            <kbd className="kbd">↓</kbd> navigate
+            <kbd className="kbd">↓</kbd> {t('palette.navigate')}
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="kbd">↵</kbd> open
+            <kbd className="kbd">↵</kbd> {t('palette.open')}
           </span>
           <span className="flex items-center gap-1">
-            <kbd className="kbd">esc</kbd> close
+            {/* i18n-ignore: a key glyph, like the arrows above */}
+            <kbd className="kbd">esc</kbd> {t('palette.close')}
           </span>
         </div>
       </div>

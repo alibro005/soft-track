@@ -10,21 +10,25 @@ leave the tracker unable to say who did what. Deactivation is the delete.
 
 from typing import Optional
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from sqlmodel import Session, col, func, or_, select
 
+from lib_identity import api_tokens
 from lib_identity.identity import get_current_user
 from lib_identity.models.admin import AdminUserRead, AdminUserUpdate
 from lib_identity.models.identity import UserMe
 from lib_softtrack.models.page import DEFAULT_LIMIT, Page
 from lib_softtrack.tables import TeamMember, User
 from lib_utils.password import hash_password
+from lib_utils.errors import ErrorCode, api_error
 
 
 def require_site_admin(current_user: User = Depends(get_current_user)) -> User:
     if not current_user.is_site_admin:
-        raise HTTPException(
-            status_code=403, detail="Only site administrators can do that"
+        raise api_error(
+            status_code=403,
+            code=ErrorCode.not_site_admin,
+            detail="Only site administrators can do that",
         )
     return current_user
 
@@ -95,7 +99,9 @@ def _to_read(user: User, team_count: int) -> AdminUserRead:
 def _get_user_or_404(session: Session, user_id: int) -> User:
     user = session.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise api_error(
+            status_code=404, code=ErrorCode.user_not_found, detail="User not found"
+        )
     return user
 
 
@@ -107,12 +113,16 @@ def update_user(
     # Locking yourself out is never what was meant, and on a single-admin
     # instance it is unrecoverable without database access.
     if user.id == actor.id and payload.is_active is False:
-        raise HTTPException(
-            status_code=400, detail="You cannot deactivate your own account"
+        raise api_error(
+            status_code=400,
+            code=ErrorCode.cannot_deactivate_self,
+            detail="You cannot deactivate your own account",
         )
     if user.id == actor.id and payload.is_site_admin is False:
-        raise HTTPException(
-            status_code=400, detail="You cannot remove your own site admin access"
+        raise api_error(
+            status_code=400,
+            code=ErrorCode.cannot_demote_self,
+            detail="You cannot remove your own site admin access",
         )
 
     # Unreachable as the rules stand, and kept anyway: the actor is
@@ -126,15 +136,20 @@ def update_user(
         and (payload.is_site_admin is False or payload.is_active is False)
     )
     if losing_the_last_admin and _active_site_admin_count(session) <= 1:
-        raise HTTPException(
+        raise api_error(
             status_code=409,
+            code=ErrorCode.last_site_admin,
             detail="This instance needs at least one active site administrator",
         )
 
     if payload.full_name is not None:
         name = payload.full_name.strip()
         if not name:
-            raise HTTPException(status_code=400, detail="A name cannot be empty")
+            raise api_error(
+                status_code=400,
+                code=ErrorCode.name_required,
+                detail="A name cannot be empty",
+            )
         user.full_name = name
     if payload.is_site_admin is not None:
         user.is_site_admin = payload.is_site_admin
@@ -143,6 +158,10 @@ def update_user(
             # Deactivating has to end the sessions too, or the account keeps
             # working for up to a week on the token it already holds.
             user.token_version += 1
+            # And its API tokens, which no session version governs (#90).
+            # Deleted rather than suspended: reactivating an account should
+            # not quietly bring back credentials a script somewhere still has.
+            api_tokens.revoke_all(session, user.id)
         user.is_active = payload.is_active
 
     session.add(user)

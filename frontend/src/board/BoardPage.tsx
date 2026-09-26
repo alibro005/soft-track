@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom'
 
-import { useListIssuesTeamsTeamIdIssuesGet } from '@/api/generated/endpoints/issues/issues'
+import {
+  useGetIssueByNumberTeamsTeamIdIssuesByNumberNumberGet,
+  useListIssuesTeamsTeamIdIssuesGet,
+} from '@/api/generated/endpoints/issues/issues'
 import { useSearchSearchGet } from '@/api/generated/endpoints/search/search'
 import type { IssueRead, SavedViewRead } from '@/api/generated/models'
 import { useAuth } from '@/auth/useAuth'
@@ -14,6 +17,15 @@ import {
   toQueryParams,
   toSearchParams,
 } from '@/board/filters'
+import { type BoardGrouping, groupingFromSearchParams, withGrouping } from '@/board/grouping'
+import {
+  type Arrangement,
+  type BoardSort,
+  fromViewSort,
+  sameSort,
+  sortFromSearchParams,
+  withSort,
+} from '@/board/sorting'
 import { IssueListView } from '@/board/IssueListView'
 import { KanbanBoard } from '@/board/KanbanBoard'
 import { EMPTY_SELECTION, selectionReducer } from '@/board/selection'
@@ -21,9 +33,12 @@ import { Sidebar } from '@/board/Sidebar'
 import { TopBar } from '@/board/TopBar'
 import { useBulkEdit } from '@/board/useBulkEdit'
 import { useOverlays } from '@/board/useOverlays'
+import { useMoveIssue } from '@/board/useMoveIssue'
 import { useStatusChange } from '@/board/useStatusChange'
+import { CalendarView } from '@/calendar/CalendarView'
 import { CycleBanner } from '@/cycles/CycleBanner'
 import { NewCycleModal } from '@/cycles/NewCycleModal'
+import { useTranslation } from '@/i18n'
 import { ImportJiraModal } from '@/imports/ImportJiraModal'
 import { IssueDetailPanel } from '@/issues/IssueDetailPanel'
 import { NewIssueModal } from '@/issues/NewIssueModal'
@@ -32,9 +47,13 @@ import { ShortcutsCheatsheet } from '@/keyboard/ShortcutsCheatsheet'
 import { type BoardView, useCommands } from '@/keyboard/useCommands'
 import { useGlobalShortcuts } from '@/keyboard/useGlobalShortcuts'
 import { isTypingTarget } from '@/keyboard/typing'
+import { ProjectPage } from '@/projects/ProjectPage'
+import { RoadmapView } from '@/projects/RoadmapView'
+import { useTeamEvents } from '@/realtime/useTeamEvents'
 import { ReportsView } from '@/reports/ReportsView'
 import { SearchResults } from '@/search/SearchResults'
 import { useDebounced } from '@/search/useDebounced'
+import { canWriteIn } from '@/team/members'
 import { TeamProvider } from '@/team/TeamContext'
 import { useTeamData } from '@/team/useTeamData'
 import { useTeamByKey } from '@/team/useTeams'
@@ -43,11 +62,18 @@ import { SaveViewModal } from '@/views/SaveViewModal'
 import { useSavedViews } from '@/views/useSavedViews'
 
 export default function BoardPage() {
-  const { teamKey, issueNumber } = useParams<{ teamKey: string; issueNumber?: string }>()
+  const { teamKey, issueNumber, projectId } = useParams<{
+    teamKey: string
+    issueNumber?: string
+    projectId?: string
+  }>()
+  // A project's own page, in place of the board -- same sidebar, same team.
+  const projectPageId = projectId && Number.isInteger(Number(projectId)) ? Number(projectId) : null
   const navigate = useNavigate()
   const location = useLocation()
   const { team, isLoading, teams } = useTeamByKey(teamKey)
   const { user } = useAuth()
+  const { t } = useTranslation(['board', 'common'])
 
   const [view, setView] = useState<BoardView>('board')
   const [search, setSearch] = useState('')
@@ -61,12 +87,45 @@ export default function BoardPage() {
   // back and forward buttons for free.
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = useMemo(() => fromSearchParams(searchParams), [searchParams])
-  const setFilters = useCallback(
-    (next: BoardFilters) => setSearchParams(toSearchParams(next)),
+  const grouping = groupingFromSearchParams(searchParams)
+  const sort = sortFromSearchParams(searchParams)
+  // The grouping and the sort ride along in the same URL, so changing a
+  // filter keeps them and a saved view can set all three at once.
+  const writeUrl = useCallback(
+    (
+      nextFilters: BoardFilters,
+      nextGrouping: BoardGrouping,
+      nextSort: BoardSort,
+      options?: { replace: boolean },
+    ) =>
+      setSearchParams((current) => {
+        const next = withSort(withGrouping(toSearchParams(nextFilters), nextGrouping), nextSort)
+        // The calendar's month (#105) is not a filter, but narrowing the
+        // calendar should not also jump it back to this month.
+        const month = current.get('month')
+        if (month) next.set('month', month)
+        return next
+      }, options),
     [setSearchParams],
+  )
+  /** Undefined leaves the arrangement as it is; a saved view brings its own. */
+  const setFilters = useCallback(
+    (next: BoardFilters, arrangement?: Arrangement) =>
+      writeUrl(next, arrangement?.grouping ?? grouping, arrangement?.sort ?? sort),
+    [writeUrl, grouping, sort],
+  )
+  const setGrouping = useCallback(
+    (next: BoardGrouping) => writeUrl(filters, next, sort),
+    [writeUrl, filters, sort],
+  )
+  const setSort = useCallback(
+    (next: BoardSort) => writeUrl(filters, grouping, next),
+    [writeUrl, filters, grouping],
   )
 
   const teamData = useTeamData(team)
+  // Other people's changes arrive as they happen (#103).
+  useTeamEvents(team?.id)
   const savedViews = useSavedViews(team?.id ?? 0)
 
   // Landing on the default view, at most once per mount.
@@ -91,9 +150,14 @@ export default function BoardPage() {
       (candidate) => candidate.id === savedViews.effectiveDefaultId,
     )
     if (landing) {
-      setSearchParams(toSearchParams(fromViewFilters(landing.filters)), { replace: true })
+      writeUrl(
+        fromViewFilters(landing.filters),
+        landing.group_by,
+        fromViewSort(landing.sort, landing.sort_direction),
+        { replace: true },
+      )
     }
-  }, [urlIsBare, team, savedViews, setSearchParams])
+  }, [urlIsBare, team, savedViews, writeUrl])
 
   // Hold the issue query until the URL cannot still be rewritten from under
   // it. When a team default exists this still costs one superseded request on
@@ -101,11 +165,18 @@ export default function BoardPage() {
   // -- which is a fair price for not duplicating the precedence rule here.
   const filtersAreSettled = !urlIsBare || !savedViews.isLoading
 
-  const issuesParams = useMemo(() => toQueryParams(filters), [filters])
+  // The board is in its own hand-arranged order (#88); the list in whatever
+  // the viewer sorted it by.
+  const order: BoardSort = view === 'board' ? { sort: 'rank', direction: 'asc' } : sort
+  const issuesParams = useMemo(
+    () => ({ ...toQueryParams(filters), sort: order.sort, direction: order.direction }),
+    [filters, order.sort, order.direction],
+  )
   const issuesQuery = useListIssuesTeamsTeamIdIssuesGet(team?.id ?? 0, issuesParams, {
-    query: { enabled: Boolean(team) && filtersAreSettled },
+    query: { enabled: Boolean(team) && filtersAreSettled && projectPageId === null },
   })
   const changeStatus = useStatusChange(team, issuesParams)
+  const moveIssue = useMoveIssue(team, issuesParams)
 
   // Every filter is applied by the server now, so this page is already what
   // the board should show. Filtering it again here would only ever narrow the
@@ -139,7 +210,11 @@ export default function BoardPage() {
     { query: { enabled: Boolean(team) && searchQuery.length > 0 } },
   )
 
-  const openNewIssue = useCallback(() => overlays.open('newIssue'), [overlays])
+  // A guest (#104) is offered nothing that writes. The server refuses them
+  // regardless; this only keeps the board from offering what will fail.
+  const canWrite = canWriteIn(teamData.members, user?.id)
+  const openNewIssueNow = useCallback(() => overlays.open('newIssue'), [overlays])
+  const openNewIssue = canWrite ? openNewIssueNow : undefined
   const openShortcuts = useCallback(() => overlays.open('shortcuts'), [overlays])
   const togglePalette = useCallback(() => overlays.toggle('palette'), [overlays])
 
@@ -180,6 +255,18 @@ export default function BoardPage() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [escapeClearsSelection, clearSelection])
 
+  // The open issue, from the page already loaded when it is there -- and by
+  // its number when it is not: an issue reached from the calendar (#105) or
+  // from search need not be among the board's first page.
+  const loadedIssue = issueNumber
+    ? issues.find((i) => String(i.number) === issueNumber)
+    : undefined
+  const fetchedIssue = useGetIssueByNumberTeamsTeamIdIssuesByNumberNumberGet(
+    team?.id ?? 0,
+    Number(issueNumber ?? 0),
+    { query: { enabled: Boolean(team && issueNumber) && !loadedIssue } },
+  )
+
   const openIssueFromPalette = useCallback(
     (issue: IssueRead) => navigate(`/${team?.key}/issue/${issue.number}`),
     [navigate, team?.key],
@@ -204,16 +291,20 @@ export default function BoardPage() {
   const selectedCycle = teamData.cycles.find((cycle) => cycle.id === filters.cycleId) ?? null
   const isTeamAdmin =
     teamData.members.find((member) => member.user.id === user?.id)?.role === 'admin'
-  // Nothing to save while these filters are already a view somebody named.
-  const matchesSavedView = savedViews.views.some((candidate) =>
-    sameFilters(filters, fromViewFilters(candidate.filters)),
+  // Nothing to save while this board is already a view somebody named.
+  const matchesSavedView = savedViews.views.some(
+    (candidate) =>
+      candidate.group_by === grouping &&
+      sameSort(sort, fromViewSort(candidate.sort, candidate.sort_direction)) &&
+      sameFilters(filters, fromViewFilters(candidate.filters)),
   )
 
   const sidebar = (
     <Sidebar
       filters={filters}
-      onFiltersChange={(next) => {
-        setFilters(next)
+      arrangement={{ grouping, sort }}
+      onFiltersChange={(next, arrangement) => {
+        setFilters(next, arrangement)
         setSidebarOpen(false)
       }}
       onEditView={(target) => {
@@ -222,14 +313,22 @@ export default function BoardPage() {
         overlays.open('saveView')
       }}
       isAdmin={isTeamAdmin}
-      onNewCycle={() => {
-        setSidebarOpen(false)
-        overlays.open('newCycle')
-      }}
-      onImport={() => {
-        setSidebarOpen(false)
-        overlays.open('import')
-      }}
+      onNewCycle={
+        canWrite
+          ? () => {
+              setSidebarOpen(false)
+              overlays.open('newCycle')
+            }
+          : undefined
+      }
+      onImport={
+        canWrite
+          ? () => {
+              setSidebarOpen(false)
+              overlays.open('import')
+            }
+          : undefined
+      }
     />
   )
 
@@ -252,55 +351,80 @@ export default function BoardPage() {
           </div>
         )}
 
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <TopBar
-            view={view}
-            onViewChange={setView}
-            onNewIssue={openNewIssue}
-            onOpenSidebar={() => setSidebarOpen(true)}
-            search={search}
-            onSearchChange={setSearch}
-            filters={filters}
-            onFiltersChange={setFilters}
-            onSaveView={() => {
-              setEditingView(null)
-              overlays.open('saveView')
-            }}
-            canSaveView={!matchesSavedView}
-            notificationsOpen={overlays.isOpen('notifications')}
-            onToggleNotifications={() => overlays.toggle('notifications')}
-            onCloseNotifications={() => overlays.close('notifications')}
-          />
-          {selectedCycle && !searchQuery && <CycleBanner cycle={selectedCycle} />}
-          <div className="min-h-0 flex-1">
-            {searchQuery ? (
-              <SearchResults
-                query={searchQuery}
-                hits={searchResults.data?.items ?? []}
-                total={searchResults.data?.total ?? 0}
-                isLoading={searchResults.isLoading}
-              />
-            ) : !filtersAreSettled || issuesQuery.isLoading ? (
-              <Loading label="Loading issues…" />
-            ) : view === 'reports' ? (
-              <ReportsView />
-            ) : view === 'board' ? (
-              <KanbanBoard
-                issues={issues}
-                onStatusChange={changeStatus}
-                estimates={teamData.estimates}
-                selectedIds={selection.ids}
-                onSelect={selectIssue}
-                onBulkStatusChange={(ids, status) => bulk.update(ids, { status_id: status.id })}
-              />
-            ) : (
-              <IssueListView issues={issues} selectedIds={selection.ids} onSelect={selectIssue} />
-            )}
+        {projectPageId !== null ? (
+          <div className="min-w-0 flex-1">
+            <ProjectPage key={projectPageId} projectId={projectPageId} />
           </div>
-        </div>
+        ) : (
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
+            <TopBar
+              view={view}
+              onViewChange={setView}
+              grouping={grouping}
+              onGroupingChange={setGrouping}
+              sort={sort}
+              onSortChange={setSort}
+              onNewIssue={openNewIssue}
+              onOpenSidebar={() => setSidebarOpen(true)}
+              search={search}
+              onSearchChange={setSearch}
+              filters={filters}
+              onFiltersChange={setFilters}
+              onSaveView={() => {
+                setEditingView(null)
+                overlays.open('saveView')
+              }}
+              canSaveView={canWrite && !matchesSavedView}
+              notificationsOpen={overlays.isOpen('notifications')}
+              onToggleNotifications={() => overlays.toggle('notifications')}
+              onCloseNotifications={() => overlays.close('notifications')}
+            />
+            {selectedCycle && !searchQuery && <CycleBanner cycle={selectedCycle} />}
+            <div className="min-h-0 flex-1">
+              {searchQuery ? (
+                <SearchResults
+                  query={searchQuery}
+                  hits={searchResults.data?.items ?? []}
+                  total={searchResults.data?.total ?? 0}
+                  isLoading={searchResults.isLoading}
+                />
+              ) : !filtersAreSettled || issuesQuery.isLoading ? (
+                <Loading label={t('page.loadingIssues')} />
+              ) : view === 'calendar' ? (
+                <CalendarView params={toQueryParams(filters)} canWrite={canWrite} />
+              ) : view === 'roadmap' ? (
+                <RoadmapView />
+              ) : view === 'reports' ? (
+                <ReportsView />
+              ) : view === 'board' ? (
+                <KanbanBoard
+                  issues={issues}
+                  grouping={grouping}
+                  onStatusChange={changeStatus}
+                  onMove={moveIssue}
+                  onProjectChange={(ids, projectId) => bulk.update(ids, { project_id: projectId })}
+                  estimates={teamData.estimates}
+                  selectedIds={selection.ids}
+                  onSelect={canWrite ? selectIssue : undefined}
+                  onBulkStatusChange={(ids, status) => bulk.update(ids, { status_id: status.id })}
+                />
+              ) : (
+                <IssueListView
+                  issues={issues}
+                  grouping={grouping}
+                  selectedIds={selection.ids}
+                  onSelect={canWrite ? selectIssue : undefined}
+                />
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      {hasSelection && !searchQuery && view !== 'reports' && (
+      {hasSelection &&
+        !searchQuery &&
+        (view === 'board' || view === 'list') &&
+        projectPageId === null && (
         <BulkActionBar selectedIds={selection.ids} bulk={bulk} onClear={clearSelection} />
       )}
       {overlays.isOpen('palette') && (
@@ -320,6 +444,12 @@ export default function BoardPage() {
       {overlays.isOpen('saveView') && (
         <SaveViewModal
           filters={editingView ? fromViewFilters(editingView.filters) : filters}
+          grouping={editingView ? editingView.group_by : grouping}
+          sort={
+            editingView
+              ? fromViewSort(editingView.sort, editingView.sort_direction)
+              : sort
+          }
           editing={editingView ?? undefined}
           onClose={() => {
             overlays.close('saveView')

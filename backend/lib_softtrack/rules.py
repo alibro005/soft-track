@@ -43,7 +43,7 @@ from typing import Iterable, Optional
 from sqlmodel import Session, select
 
 from lib_softtrack import automations as automations_service
-from lib_softtrack import history, notifications as notifications_service
+from lib_softtrack import history, notifications as notifications_service, outbound
 from lib_softtrack.automations import MAX_RUNS_PER_TEAM
 from lib_softtrack.models.automations import RuleActions
 from lib_softtrack.tables import (
@@ -264,6 +264,8 @@ def _matches(session: Session, rule: AutomationRule, issue: Issue) -> bool:
         return False
     if rule.if_priority is not None and issue.priority != rule.if_priority:
         return False
+    if rule.if_type is not None and issue.type != rule.if_type:
+        return False
     if rule.if_project_id is not None and issue.project_id != rule.if_project_id:
         return False
     if rule.if_unassigned and issue.assignee_id is not None:
@@ -301,6 +303,7 @@ def _apply(
     actions = automations_service.actions_of(rule)
     history_before = history.snapshot(issue)
     notify_before = notifications_service.snapshot(issue)
+    hook_before = outbound.snapshot(issue)
 
     lines: list[str] = []
     touched_issue = False
@@ -314,6 +317,11 @@ def _apply(
     if actions.set_priority is not None and issue.priority != actions.set_priority:
         issue.priority = actions.set_priority
         lines.append(f"Set priority to {actions.set_priority.value.replace('_', ' ')}")
+        touched_issue = True
+
+    if actions.set_type is not None and issue.type != actions.set_type:
+        issue.type = actions.set_type
+        lines.append(f"Set type to {actions.set_type.value}")
         touched_issue = True
 
     if (
@@ -359,6 +367,7 @@ def _apply(
         notifications_service.on_issue_updated(
             session, issue, notify_before, actor=None
         )
+        outbound.issue_changed(session, issue, hook_before, actor=None)
 
     return lines
 

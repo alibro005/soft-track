@@ -72,6 +72,58 @@ class ProjectState(str, enum.Enum):
     cancelled = "cancelled"
 
 
+class IssueGrouping(str, enum.Enum):
+    """What the board's columns, and the list's sections, are made of.
+
+    A saved view stores one (#63), so "the planning view" can open grouped by
+    project while "my bugs" opens by status. Status is the default because it
+    is what the board always was.
+    """
+
+    status = "status"
+    project = "project"
+
+
+class IssueType(str, enum.Enum):
+    """What kind of work an issue is (#89).
+
+    A fixed three, deliberately: per-team custom types are how Jira's type
+    list grew until nobody could say what a "Sub-task (Technical)" was.
+
+    There is no `epic`. An epic is a Project (#60-#64) -- a grouping of issues
+    with a lead, a target date and progress -- and making it a type as well
+    would give the tracker two competing ways to say "these belong together".
+    """
+
+    #: Something that does not work as it should.
+    bug = "bug"
+    #: A piece of work that is not a bug or a user-facing story. The default.
+    task = "task"
+    #: A change described from the user's side.
+    story = "story"
+
+
+class IssueSort(str, enum.Enum):
+    """What the issue list can be ordered by (#88)."""
+
+    #: When it was filed. The default, and what the list always did.
+    created = "created"
+    updated = "updated"
+    #: Urgent first when descending; "no priority" is the lowest of all.
+    priority = "priority"
+    #: Largest first when descending. Unsized issues come last either way.
+    estimate = "estimate"
+    #: Alphabetical, ignoring case.
+    title = "title"
+    #: The board's own order, arranged by hand (part 2).
+    rank = "rank"
+
+
+class SortDirection(str, enum.Enum):
+    asc = "asc"
+    desc = "desc"
+
+
 class IssuePriority(str, enum.Enum):
     no_priority = "no_priority"
     urgent = "urgent"
@@ -121,11 +173,72 @@ class IssueEventField(str, enum.Enum):
     status = "status"
     cycle = "cycle"
     estimate = "estimate"
+    #: Which project -- epic -- the issue is in (#64). What makes "how much
+    #: did this epic grow after work started" answerable, and scope added late
+    #: is what explains most missed dates.
+    project = "project"
+    #: Who it is assigned to, and how urgent it is (#81). Not charted by any
+    #: report -- recorded because they are what people ask the history about:
+    #: "who gave me this?", "who made it urgent?".
+    assignee = "assignee"
+    priority = "priority"
+    #: When the issue is due (#87).
+    due_date = "due_date"
+    #: Which team it is on, recorded as its key -- `ENG-42` to `OPS-17` (#98).
+    #: The key rather than the team id because the key is what changed from
+    #: anybody's point of view, and what the Activity feed has to show.
+    team = "team"
+
+
+class DueFilter(str, enum.Enum):
+    """The due-date questions the board can be narrowed to (#87).
+
+    Three questions rather than a date range: they are what a standup asks,
+    and "this week" means the viewer's week -- the client sends its own
+    today, so a filter saved on a Sunday evening in Sydney does not quietly
+    mean London's Sunday.
+    """
+
+    #: Past its due date and not yet done or cancelled.
+    overdue = "overdue"
+    #: Due from today to the end of this week (Sunday), done or not.
+    this_week = "this_week"
+    #: No due date at all.
+    none = "none"
 
 
 class TeamRole(str, enum.Enum):
+    """What someone may do inside one team.
+
+    Ordered from most to least power. `guest` (#104) sees everything a member
+    sees -- board, list, issues, comments, cycles, reports, search -- and
+    changes nothing: no issues, no comments, no settings. The one thing a guest
+    does write is their own relationship to the team: watching an issue,
+    choosing their own default view, and leaving.
+    """
+
     admin = "admin"
     member = "member"
+    guest = "guest"
+
+
+class ReactionEmoji(str, enum.Enum):
+    """The reactions a comment can get (#96) -- GitHub's eight, and only those.
+
+    A fixed set rather than any emoji: no picker to build, no emoji data to
+    ship, and a count that means the same thing on every comment. Stored by
+    name rather than as the character, so the value is plain ASCII in every
+    database and every client, and the glyph is the frontend's business.
+    """
+
+    thumbs_up = "thumbs_up"
+    thumbs_down = "thumbs_down"
+    laugh = "laugh"
+    hooray = "hooray"
+    confused = "confused"
+    heart = "heart"
+    rocket = "rocket"
+    eyes = "eyes"
 
 
 class NotificationKind(str, enum.Enum):
@@ -334,6 +447,123 @@ class UserIdentity(SQLModel, table=True):
     last_login_at: Optional[datetime] = None
 
 
+class WebhookEvent(str, enum.Enum):
+    """What an outbound webhook can be sent (#91).
+
+    The same happenings the notification system already observes, named the
+    way most senders name theirs: `resource.verb`.
+    """
+
+    issue_created = "issue.created"
+    #: Any change to an issue's fields. A status change sends this *and*
+    #: `issue.status_changed`, so a consumer can listen to only the latter.
+    issue_updated = "issue.updated"
+    issue_status_changed = "issue.status_changed"
+    comment_created = "comment.created"
+    cycle_started = "cycle.started"
+    cycle_completed = "cycle.completed"
+    #: Sent on request from the settings page, to check a URL works.
+    ping = "ping"
+
+
+class OutboundWebhook(SQLModel, table=True):
+    """A URL a team's events are posted to (#91). Managed by team admins."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    team_id: int = Field(foreign_key="team.id", index=True)
+    url: str
+    #: The HMAC key for X-SoftTrack-Signature. Kept as given -- signing needs
+    #: the key itself, unlike a credential that only has to be checked -- and
+    #: shown once, when the webhook is made.
+    secret: str
+    #: The subscribed WebhookEvent values, comma-separated. A short fixed set,
+    #: read and written only through lib_softtrack/outbound.py.
+    events: str
+    is_enabled: bool = Field(default=True)
+    #: Deliveries in a row that failed after every retry. Reset by a success.
+    consecutive_failures: int = Field(default=0)
+    #: Why it was switched off automatically; null if it was not.
+    disabled_reason: Optional[str] = None
+    created_by_id: int = Field(foreign_key="user.id")
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class WebhookDelivery(SQLModel, table=True):
+    """One event on its way to one webhook, and what happened to it (#91).
+
+    Written in the same transaction as the change it reports -- an outbox --
+    so an event is never lost to a crash between the change and the send, and
+    the send happens later, off the request. The same rows are the delivery
+    log the settings page shows, like AutomationRun is for rules.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    webhook_id: int = Field(foreign_key="outboundwebhook.id", index=True)
+    event: str
+    #: The exact JSON body, fixed when the event happened, so every retry
+    #: sends -- and signs -- the same bytes.
+    payload: str
+    #: pending, succeeded or failed.
+    status: str = Field(default="pending", index=True)
+    attempts: int = Field(default=0)
+    #: When the next attempt is due; null once it has succeeded or given up.
+    next_attempt_at: Optional[datetime] = Field(default=None, index=True)
+    #: A worker's hold on the row while it sends, so two processes never
+    #: send the same delivery. See outbound._claim.
+    claimed_until: Optional[datetime] = None
+    response_status: Optional[int] = None
+    #: The start of the response body, or the error, for debugging from the UI.
+    response_excerpt: Optional[str] = None
+    created_at: datetime = Field(default_factory=utcnow, index=True)
+    completed_at: Optional[datetime] = None
+
+
+class ApiToken(SQLModel, table=True):
+    """A personal API token, for scripts and integrations (#90).
+
+    Acts as its owner, with its owner's permissions -- there are no scopes
+    yet. Only a SHA-256 hash of the secret is stored: the secret is shown
+    once, when the token is made, and a leaked backup holds nothing usable.
+    Hashing needs no salt or slow hash because the secret is 256 random bits.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    name: str
+    token_hash: str = Field(index=True, unique=True)
+    #: The secret's last four characters, so a person can tell which token a
+    #: leak is -- "softtrack_...Xy3Q" -- without the secret being kept.
+    hint: str
+    created_at: datetime = Field(default_factory=utcnow)
+    #: Updated at most once a minute; a busy script would otherwise write a
+    #: row on every request just to say it is still busy.
+    last_used_at: Optional[datetime] = None
+    #: Null means it does not expire.
+    expires_at: Optional[datetime] = None
+
+
+class PasswordReset(SQLModel, table=True):
+    """A pending "forgot password" link (#83).
+
+    Shaped like TeamInvite -- a row that disappears once it has been used --
+    with one difference: only a SHA-256 hash of the token is stored. The
+    token *is* the credential, for as long as the row lives, and a leaked
+    backup or a read-only SQL injection should not hand out working links.
+    Hashing is enough without a salt or a slow hash because the token is 256
+    random bits, not something a person chose.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    token_hash: str = Field(index=True, unique=True)
+    #: The account's `token_version` when the link was requested. Changing the
+    #: password any other way, or signing out everywhere, moves it on -- and
+    #: with it every link still sitting in an inbox.
+    token_version: int
+    created_at: datetime = Field(default_factory=utcnow)
+    expires_at: datetime
+
+
 class TeamInvite(SQLModel, table=True):
     """A pending invitation to join a team, addressed to an email.
 
@@ -364,6 +594,11 @@ class TeamInvite(SQLModel, table=True):
     invited_by_id: int = Field(foreign_key="user.id")
     created_at: datetime = Field(default_factory=utcnow)
     expires_at: datetime
+    #: When the current link was emailed to the address (#84), or null if it
+    #: never was. "Attempted", not "delivered": SMTP accepting a message is
+    #: all this instance can know. Cleared when a re-invite mints a new link
+    #: without emailing it, because the link in the old email no longer works.
+    emailed_at: Optional[datetime] = None
 
 
 class Team(SQLModel, table=True):
@@ -432,6 +667,11 @@ class Issue(SQLModel, table=True):
     #: started, done -- is the status's category; see StatusCategory.
     status_id: int = Field(foreign_key="workflowstatus.id", index=True)
     priority: IssuePriority = Field(default=IssuePriority.no_priority)
+    type: IssueType = Field(default=IssueType.task, index=True)
+    #: Where it sits on the board, as a fractional-indexing key compared by
+    #: code point -- see lib_softtrack/ranks.py. Set on creation (top of the
+    #: team) and by dragging; nothing else touches it.
+    rank: str = Field(default="", index=True)
     assignee_id: Optional[int] = Field(default=None, foreign_key="user.id")
     # One level of nesting only -- an issue with a parent may not itself be a
     # parent. See lib_softtrack/subissues.py for why that limit is enforced
@@ -447,6 +687,10 @@ class Issue(SQLModel, table=True):
     # Story points. Null means "not sized yet", which is a different thing
     # from zero -- a burndown has to be able to tell them apart.
     estimate: Optional[int] = Field(default=None)
+    #: When it is due (#87). A date rather than a datetime, like a project's
+    #: target: "due Friday" is a day, and a timestamp would move it across
+    #: midnight for anybody in another timezone.
+    due_date: Optional[date] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 
@@ -514,6 +758,13 @@ class IssueEvent(SQLModel, table=True):
     new_value: Optional[str] = None
     actor_id: Optional[int] = Field(default=None, foreign_key="user.id")
     created_at: datetime = Field(default_factory=utcnow, index=True)
+    #: The value a field started with, written when the issue was created or
+    #: imported -- not a change to it. The reports need these (a chart has to
+    #: know where an issue began); the Activity feed leaves them out (#81).
+    #: Marked when written rather than inferred afterwards: "old value null,
+    #: soon after creation" also describes a real change made quickly, such
+    #: as an automation assigning a new issue.
+    opening: bool = Field(default=False)
 
 
 class Comment(SQLModel, table=True):
@@ -526,6 +777,75 @@ class Comment(SQLModel, table=True):
     #: nullable for the same event and the same reason.
     author_id: Optional[int] = Field(default=None, foreign_key="user.id")
     body: str
+    created_at: datetime = Field(default_factory=utcnow)
+    #: When the body last changed (#93), or null if it never has. Only the
+    #: latest edit is kept -- enough for an "(edited)" marker, and no promise
+    #: of a history that nothing reads.
+    edited_at: Optional[datetime] = None
+
+
+class Worklog(SQLModel, table=True):
+    """Time somebody spent on an issue, on one day (#102).
+
+    Minutes as an integer rather than an interval type: every question asked
+    of this table is a sum, and integers sum exactly and identically on SQLite
+    and Postgres. One entry is one day's work -- which is why it has a date
+    and why it is capped at a day -- so "2h yesterday, 3h today" is two rows
+    and a report by date is a `GROUP BY` rather than a guess about how a
+    three-day entry should be spread.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    issue_id: int = Field(foreign_key="issue.id", index=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    minutes: int
+    #: The day the work happened, in the logger's own calendar. Defaults to
+    #: their today; worth changing for "I forgot to log Friday".
+    worked_on: date = Field(index=True)
+    note: Optional[str] = None
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class IssueTemplate(SQLModel, table=True):
+    """A starting point for a new issue's description (#97).
+
+    Per team and admin-managed: "Bug report" means repro steps on one team and
+    a customer ticket number on another. Only the description -- a default
+    assignee, labels or priority is what automation rules are for, and a
+    template that set them would be a second engine for the same job.
+
+    Choosing one fills the description field and nothing else holds on to it:
+    the issue does not remember which template it came from, so editing or
+    deleting a template never changes an issue that already exists.
+    """
+
+    __table_args__ = (
+        UniqueConstraint("team_id", "name", name="uq_issue_template_team_name"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    team_id: int = Field(foreign_key="team.id", index=True)
+    name: str
+    body: str
+    #: The picker's order, which admins set.
+    position: int = 0
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class CommentReaction(SQLModel, table=True):
+    """One person's one reaction to one comment (#96).
+
+    The primary key is the whole row, the way `IssueLabelLink` is: the same
+    person can give a comment several different reactions, and never the same
+    one twice. That is also what makes adding one idempotent -- a double click
+    is a second insert of a row that exists.
+    """
+
+    comment_id: int = Field(foreign_key="comment.id", primary_key=True)
+    user_id: int = Field(foreign_key="user.id", primary_key=True)
+    emoji: ReactionEmoji = Field(primary_key=True)
     created_at: datetime = Field(default_factory=utcnow)
 
 
@@ -654,6 +974,16 @@ class SavedView(SQLModel, table=True):
     #: pointing at a cycle that no longer exists would match nothing and look
     #: broken rather than empty.
     cycle_id: Optional[int] = Field(default=None, foreign_key="cycle.id")
+    due: Optional[DueFilter] = None
+    type: Optional[IssueType] = None
+
+    #: Not a filter -- it narrows nothing -- but part of what a view *is*: the
+    #: same issues read very differently by column and by project.
+    group_by: IssueGrouping = Field(default=IssueGrouping.status)
+    #: How the list is ordered (#88). Null is the default, newest first --
+    #: which is what every view saved before this column existed showed.
+    sort: Optional[IssueSort] = None
+    sort_direction: Optional[SortDirection] = None
 
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
@@ -746,6 +1076,7 @@ class AutomationRule(SQLModel, table=True):
     #: same column read the same way, so there is one rule to remember.
     if_status_id: Optional[int] = Field(default=None, foreign_key="workflowstatus.id")
     if_priority: Optional[IssuePriority] = None
+    if_type: Optional[IssueType] = None
     if_label_id: Optional[int] = Field(default=None, foreign_key="label.id")
     if_project_id: Optional[int] = Field(default=None, foreign_key="project.id")
     if_assignee_id: Optional[int] = Field(default=None, foreign_key="user.id")
@@ -757,6 +1088,7 @@ class AutomationRule(SQLModel, table=True):
     # --- Actions ---------------------------------------------------------
     set_status_id: Optional[int] = Field(default=None, foreign_key="workflowstatus.id")
     set_priority: Optional[IssuePriority] = None
+    set_type: Optional[IssueType] = None
     set_assignee_id: Optional[int] = Field(default=None, foreign_key="user.id")
     #: Added, never replacing what is there. Labels are additive everywhere
     #: else in SoftTrack, and a rule that silently stripped the ones somebody

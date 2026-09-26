@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Optional
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
@@ -6,7 +6,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from lib_identity.models.identity import UserPublic
 from lib_softtrack.models.labels import LabelRead
 from lib_softtrack.models.statuses import StatusRead
-from lib_softtrack.tables import IssuePriority
+from lib_softtrack.tables import IssuePriority, IssueType
 
 # A modified Fibonacci scale. The gaps are the point: they stop a team
 # arguing about whether something is a 6 or a 7, a distinction no estimate is
@@ -58,10 +58,12 @@ class IssueCreate(BaseModel):
     #: issue belongs and is what `backlog` used to mean.
     status_id: Optional[int] = None
     priority: IssuePriority = IssuePriority.no_priority
+    type: IssueType = IssueType.task
     assignee_id: Optional[int] = None
     estimate: Estimate = None
     parent_id: Optional[int] = None
     cycle_id: Optional[int] = None
+    due_date: Optional[date] = None
     label_ids: list[int] = []
 
 
@@ -71,6 +73,7 @@ class IssueUpdate(BaseModel):
     project_id: Optional[int] = None
     status_id: Optional[int] = None
     priority: Optional[IssuePriority] = None
+    type: Optional[IssueType] = None
     assignee_id: Optional[int] = None
     # `exclude_unset` in the service keeps "clear the estimate" (an explicit
     # null) distinct from "leave it alone" (the field omitted). The same
@@ -80,7 +83,23 @@ class IssueUpdate(BaseModel):
     parent_id: Optional[int] = None
     #: An explicit null moves the issue out of its cycle, back to the backlog.
     cycle_id: Optional[int] = None
+    #: An explicit null clears the due date.
+    due_date: Optional[date] = None
     label_ids: Optional[list[int]] = None
+
+
+class IssueMove(BaseModel):
+    """Where a card was dropped on the board (#88).
+
+    The cards it landed between, as the board showed them: `above_id` is the
+    one now above it, `below_id` the one below. Either is null at the top or
+    bottom of a column, and both are null in an empty one. `status_id` moves
+    it to another column at the same time.
+    """
+
+    above_id: Optional[int] = None
+    below_id: Optional[int] = None
+    status_id: Optional[int] = None
 
 
 class IssueRead(BaseModel):
@@ -94,12 +113,17 @@ class IssueRead(BaseModel):
     description: Optional[str] = None
     status: StatusRead
     priority: IssuePriority
+    type: IssueType
+    #: The board's order (#88): a string compared by code point. Clients sort
+    #: by it; they never make one -- moving a card is POST /issues/{id}/move.
+    rank: str
     assignee: Optional[UserPublic] = None
     estimate: Optional[int] = None
     #: Unresolved issues that block this one. Zero for an issue that is free
     #: to start; the board marks anything above zero.
     blocked_by_count: int
     cycle_id: Optional[int] = None
+    due_date: Optional[date] = None
     #: The key this issue had before it was imported, e.g. "PROJ-142".
     external_key: Optional[str] = None
     parent: Optional[ParentRef] = None

@@ -8,6 +8,7 @@ export type IconName =
   | 'sun'
   | 'moon'
   | 'chevron-down'
+  | 'chevron-up'
   | 'chevron-right'
   | 'chevron-left'
   | 'board'
@@ -37,6 +38,12 @@ export type IconName =
   | 'branch'
   | 'pull-request'
   | 'commit'
+  | 'bug'
+  | 'task'
+  | 'story'
+  | 'smile'
+  | 'download'
+  | 'calendar-grid'
 
 const PATHS: Record<IconName, JSX.Element> = {
   search: (
@@ -56,6 +63,7 @@ const PATHS: Record<IconName, JSX.Element> = {
   ),
   moon: <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />,
   'chevron-down': <path d="m6 9 6 6 6-6" />,
+  'chevron-up': <path d="m6 15 6-6 6 6" />,
   'chevron-right': <path d="m9 6 6 6-6 6" />,
   'chevron-left': <path d="m15 6-6 6 6 6" />,
   board: (
@@ -78,6 +86,7 @@ const PATHS: Record<IconName, JSX.Element> = {
     </>
   ),
   upload: <path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />,
+  download: <path d="M12 4v12m0 0-4-4m4 4 4-4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />,
   logout: <path d="M10 17l5-5-5-5M15 12H3M13 4h6a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-6" />,
   sparkle: <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8" />,
   command: (
@@ -174,6 +183,34 @@ const PATHS: Record<IconName, JSX.Element> = {
     <>
       <circle cx="12" cy="12" r="3" />
       <path d="M3 12h6M15 12h6" />
+    </>
+  ),
+  // Issue types (#89). Three different outlines -- a rounded body with legs, a
+  // square with a tick, a bookmark -- so they are told apart by shape, not by
+  // the colour they are drawn in.
+  bug: (
+    <>
+      <rect x="8" y="7" width="8" height="12" rx="4" />
+      <path d="M12 11v8M8 11H4M8 15H4M16 11h4M16 15h4M10 7 8.5 4.5M14 7l1.5-2.5" />
+    </>
+  ),
+  task: (
+    <>
+      <rect x="4.5" y="4.5" width="15" height="15" rx="3" />
+      <path d="m8.5 12 2.5 2.5 4.5-5" />
+    </>
+  ),
+  story: <path d="M7 4h10a1 1 0 0 1 1 1v15l-6-4-6 4V5a1 1 0 0 1 1-1Z" />,
+  'calendar-grid': (
+    <>
+      <rect x="4" y="5" width="16" height="15" rx="2" />
+      <path d="M4 10h16M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01" />
+    </>
+  ),
+  smile: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8.5 14.5s1.3 1.8 3.5 1.8 3.5-1.8 3.5-1.8M9 9.5h.01M15 9.5h.01" />
     </>
   ),
 }

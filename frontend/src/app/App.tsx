@@ -3,11 +3,13 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from '@/auth/RequireAuth'
 import BoardPage from '@/board/BoardPage'
 import HomeRoute from '@/landing/HomeRoute'
+import ForgotPasswordPage from '@/auth/ForgotPasswordPage'
 import InvitePage from '@/auth/InvitePage'
 import LoginPage from '@/auth/LoginPage'
 import OAuthCallbackPage from '@/auth/OAuthCallbackPage'
 import NewTeamPage from '@/team/NewTeamPage'
 import RegisterPage from '@/auth/RegisterPage'
+import ResetPasswordPage from '@/auth/ResetPasswordPage'
 import AdminUsersPage from '@/settings/AdminUsersPage'
 import NotificationSettings from '@/settings/NotificationSettings'
 import ProfileSettings from '@/settings/ProfileSettings'
@@ -18,6 +20,8 @@ import TeamGeneralSettings from '@/settings/TeamGeneralSettings'
 import TeamIntegrationSettings from '@/settings/TeamIntegrationSettings'
 import TeamMembersSettings from '@/settings/TeamMembersSettings'
 import TeamStatusSettings from '@/settings/TeamStatusSettings'
+import TeamTemplateSettings from '@/settings/TeamTemplateSettings'
+import TeamWebhookSettings from '@/settings/TeamWebhookSettings'
 import { RequireSiteAdmin } from '@/settings/RequireSiteAdmin'
 
 export default function App() {
@@ -29,6 +33,10 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        {/* Signed-out pages: a forgotten password is the one thing that
+            cannot wait for a session (#83). */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         {/* Where a sign-in with Google or GitHub comes back to. Outside
             RequireAuth by necessity: the ticket it is carrying is what the
             person is about to become authenticated with, and it has not been
@@ -67,6 +75,7 @@ export default function App() {
             <Route path="teams/:teamKey/members" element={<TeamMembersSettings />} />
             <Route path="teams/:teamKey/general" element={<TeamGeneralSettings />} />
             <Route path="teams/:teamKey/statuses" element={<TeamStatusSettings />} />
+            <Route path="teams/:teamKey/templates" element={<TeamTemplateSettings />} />
             <Route
               path="teams/:teamKey/automation"
               element={<TeamAutomationSettings />}
@@ -75,6 +84,7 @@ export default function App() {
               path="teams/:teamKey/repositories"
               element={<TeamIntegrationSettings />}
             />
+            <Route path="teams/:teamKey/webhooks" element={<TeamWebhookSettings />} />
             <Route element={<RequireSiteAdmin />}>
               <Route path="admin/users" element={<AdminUsersPage />} />
             </Route>
@@ -82,6 +92,7 @@ export default function App() {
 
           <Route path="/:teamKey" element={<BoardPage />} />
           <Route path="/:teamKey/issue/:issueNumber" element={<BoardPage />} />
+          <Route path="/:teamKey/projects/:projectId" element={<BoardPage />} />
         </Route>
 
         {/* Still "/", which no longer means "go to login" for a signed-out

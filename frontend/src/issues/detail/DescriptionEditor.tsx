@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 
+import { useTranslation } from '@/i18n'
 import { useTeamContext } from '@/team/useTeamContext'
 
 import { Markdown, MarkdownEditor } from '@/markdown/lazy'
@@ -22,6 +23,7 @@ export function DescriptionEditor({
   onSave,
   onToggleTask,
   onUploadFiles,
+  readOnly = false,
 }: {
   /** What the server has. */
   saved: string | null | undefined
@@ -32,11 +34,14 @@ export function DescriptionEditor({
   onSave: (description: string) => Promise<void>
   onToggleTask: (offset: number) => void
   onUploadFiles?: (files: File[]) => Promise<Array<{ markdown: string }>>
+  /** A guest's view (#104): the description, and no way to change it. */
+  readOnly?: boolean
 }) {
+  const { t } = useTranslation(['issues', 'common'])
   const [editing, setEditing] = useState(false)
   const { team, teams } = useTeamContext()
   const teamKeys = useMemo(
-    () => Array.from(new Set([team.key, ...teams.map((t) => t.key)])),
+    () => Array.from(new Set([team.key, ...teams.map((other) => other.key)])),
     [team, teams],
   )
 
@@ -48,7 +53,7 @@ export function DescriptionEditor({
           onChange={setDraft}
           people={people}
           teamKeys={teamKeys}
-          placeholder="Add a description… Markdown works here."
+          placeholder={t('description.placeholder')}
           rows={8}
           autoFocus
           onUploadFiles={onUploadFiles}
@@ -62,7 +67,7 @@ export function DescriptionEditor({
             }}
             className="btn btn-primary btn-sm"
           >
-            Save
+            {t('common:save')}
           </button>
           <button
             type="button"
@@ -72,7 +77,7 @@ export function DescriptionEditor({
             }}
             className="btn btn-ghost btn-sm"
           >
-            Cancel
+            {t('common:cancel')}
           </button>
         </div>
       </div>
@@ -80,6 +85,7 @@ export function DescriptionEditor({
   }
 
   if (!saved?.trim()) {
+    if (readOnly) return null
     return (
       <div className="mt-3">
         <button
@@ -88,7 +94,7 @@ export function DescriptionEditor({
           className="flex w-full items-center gap-2 rounded-card border border-dashed border-neutral-900/15 px-3 py-2.5 text-left text-sm text-neutral-500 transition hover:border-brand-400/60 hover:text-neutral-800"
         >
           <Icon name="plus" size={14} className="opacity-70" />
-          Add a description
+          {t('description.add')}
         </button>
       </div>
     )
@@ -96,13 +102,19 @@ export function DescriptionEditor({
 
   return (
     <div className="mt-3">
-      <Markdown people={people} onToggleTask={onToggleTask} teamKeys={teamKeys}>
+      <Markdown
+        people={people}
+        onToggleTask={readOnly ? undefined : onToggleTask}
+        teamKeys={teamKeys}
+      >
         {saved}
       </Markdown>
       <div className="mt-2 flex items-center gap-3">
-        <button type="button" onClick={() => setEditing(true)} className="btn btn-ghost btn-xs">
-          Edit description
-        </button>
+        {!readOnly && (
+          <button type="button" onClick={() => setEditing(true)} className="btn btn-ghost btn-xs">
+            {t('description.edit')}
+          </button>
+        )}
         <TaskProgress source={saved} />
       </div>
     </div>
@@ -111,6 +123,7 @@ export function DescriptionEditor({
 
 /** "3 of 7 tasks" plus a thin bar, shown only when there are tasks. */
 function TaskProgress({ source }: { source: string }) {
+  const { t } = useTranslation('issues')
   const { done, total } = taskProgress(source)
   if (total === 0) return null
 
@@ -122,7 +135,7 @@ function TaskProgress({ source }: { source: string }) {
           style={{ width: `${(done / total) * 100}%` }}
         />
       </span>
-      {done} of {total} tasks
+      {t('description.tasks', { done, count: total })}
     </span>
   )
 }

@@ -30,13 +30,19 @@ import type {
   IssueBulkDelete,
   IssueBulkUpdate,
   IssueCreate,
+  IssueEventRead,
   IssueLinkCreate,
   IssueLinkRead,
   IssueLinks,
+  IssueMove,
   IssueRead,
+  IssueTransfer,
   IssueUpdate,
   ListIssuesTeamsTeamIdIssuesGetParams,
-  PageIssueRead
+  PageIssueRead,
+  PreviewTransferIssuesIssueIdTransferGetParams,
+  TransferPlan,
+  TransferResult
 } from '../../models';
 
 import { apiClient } from '../../../client';
@@ -568,6 +574,174 @@ export function useGetIssueByNumberTeamsTeamIdIssuesByNumberNumberGet<TData = Aw
 
 
 /**
+ * Place a card between two others on the board, optionally in another
+ * column. Its neighbours are named, never its new position's key -- the
+ * server works that out, so a client never has to.
+ * @summary Move Issue
+ */
+export const moveIssueIssuesIssueIdMovePost = (
+    issueId: number,
+    issueMove: IssueMove,
+ signal?: AbortSignal
+) => {
+
+
+      return apiClient<IssueRead>(
+      {url: `/issues/${issueId}/move`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: issueMove, signal
+    },
+      );
+    }
+
+
+
+
+export const getMoveIssueIssuesIssueIdMovePostMutationKey = () => ['moveIssueIssuesIssueIdMovePost'] as const;
+
+export const getMoveIssueIssuesIssueIdMovePostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moveIssueIssuesIssueIdMovePost>>, TError,MoveIssueIssuesIssueIdMovePostMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof moveIssueIssuesIssueIdMovePost>>, TError,MoveIssueIssuesIssueIdMovePostMutationVariables, TContext> => {
+
+const mutationKey = getMoveIssueIssuesIssueIdMovePostMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof moveIssueIssuesIssueIdMovePost>>, MoveIssueIssuesIssueIdMovePostMutationVariables> = (props) => {
+          const {issueId,data} = props ?? {};
+
+          return  moveIssueIssuesIssueIdMovePost(issueId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MoveIssueIssuesIssueIdMovePostMutationResult = NonNullable<Awaited<ReturnType<typeof moveIssueIssuesIssueIdMovePost>>>
+    export type MoveIssueIssuesIssueIdMovePostMutationBody = IssueMove
+    export type MoveIssueIssuesIssueIdMovePostMutationError = HTTPValidationError
+    export type MoveIssueIssuesIssueIdMovePostMutationVariables = {issueId: number;data: IssueMove}
+
+    /**
+ * @summary Move Issue
+ */
+export const useMoveIssueIssuesIssueIdMovePost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moveIssueIssuesIssueIdMovePost>>, TError,MoveIssueIssuesIssueIdMovePostMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof moveIssueIssuesIssueIdMovePost>>,
+        TError,
+        MoveIssueIssuesIssueIdMovePostMutationVariables,
+        TContext
+      > => {
+      return useMutation(getMoveIssueIssuesIssueIdMovePostMutationOptions(options), queryClient);
+    }
+    /**
+ * What has happened to an issue: status, priority, assignee, estimate,
+ * cycle and project changes, oldest first, with who made each one.
+ *
+ * The latest 100 changes. The values an issue was created with are its
+ * starting point rather than changes, and are left out.
+ * @summary List Issue Events
+ */
+export const listIssueEventsIssuesIssueIdEventsGet = (
+    issueId: number,
+ signal?: AbortSignal
+) => {
+
+
+      return apiClient<IssueEventRead[]>(
+      {url: `/issues/${issueId}/events`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getListIssueEventsIssuesIssueIdEventsGetQueryKey = (issueId: number,) => {
+    return [
+    `/issues/${issueId}/events`
+    ] as const;
+    }
+
+
+export const getListIssueEventsIssuesIssueIdEventsGetQueryOptions = <TData = Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>, TError = HTTPValidationError>(issueId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListIssueEventsIssuesIssueIdEventsGetQueryKey(issueId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>> = ({ signal }) => listIssueEventsIssuesIssueIdEventsGet(issueId, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: issueId !== null && issueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListIssueEventsIssuesIssueIdEventsGetQueryResult = NonNullable<Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>>
+export type ListIssueEventsIssuesIssueIdEventsGetQueryError = HTTPValidationError
+
+
+export function useListIssueEventsIssuesIssueIdEventsGet<TData = Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>, TError = HTTPValidationError>(
+ issueId: number, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListIssueEventsIssuesIssueIdEventsGet<TData = Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>, TError = HTTPValidationError>(
+ issueId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListIssueEventsIssuesIssueIdEventsGet<TData = Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>, TError = HTTPValidationError>(
+ issueId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Issue Events
+ */
+
+export function useListIssueEventsIssuesIssueIdEventsGet<TData = Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>, TError = HTTPValidationError>(
+ issueId: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listIssueEventsIssuesIssueIdEventsGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListIssueEventsIssuesIssueIdEventsGetQueryOptions(issueId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+/**
  * @summary Get Issue
  */
 export const getIssueIssuesIssueIdGet = (
@@ -1026,4 +1200,178 @@ export const useDeleteIssueLinkIssuesIssueIdLinksLinkIdDelete = <TError = HTTPVa
         TContext
       > => {
       return useMutation(getDeleteIssueLinkIssuesIssueIdLinksLinkIdDeleteMutationOptions(options), queryClient);
+    }
+    /**
+ * What moving the issue to `team_id` would change, without changing it.
+ * @summary Preview Transfer
+ */
+export const previewTransferIssuesIssueIdTransferGet = (
+    issueId: number,
+    params: PreviewTransferIssuesIssueIdTransferGetParams,
+ signal?: AbortSignal
+) => {
+
+
+      return apiClient<TransferPlan>(
+      {url: `/issues/${issueId}/transfer`, method: 'GET',
+        params, signal
+    },
+      );
+    }
+
+
+
+
+export const getPreviewTransferIssuesIssueIdTransferGetQueryKey = (issueId: number,
+    params?: PreviewTransferIssuesIssueIdTransferGetParams,) => {
+    return [
+    `/issues/${issueId}/transfer`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getPreviewTransferIssuesIssueIdTransferGetQueryOptions = <TData = Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>, TError = HTTPValidationError>(issueId: number,
+    params: PreviewTransferIssuesIssueIdTransferGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getPreviewTransferIssuesIssueIdTransferGetQueryKey(issueId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>> = ({ signal }) => previewTransferIssuesIssueIdTransferGet(issueId,params, signal);
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: issueId !== null && issueId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type PreviewTransferIssuesIssueIdTransferGetQueryResult = NonNullable<Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>>
+export type PreviewTransferIssuesIssueIdTransferGetQueryError = HTTPValidationError
+
+
+export function usePreviewTransferIssuesIssueIdTransferGet<TData = Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>, TError = HTTPValidationError>(
+ issueId: number,
+    params: PreviewTransferIssuesIssueIdTransferGetParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>,
+          TError,
+          Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePreviewTransferIssuesIssueIdTransferGet<TData = Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>, TError = HTTPValidationError>(
+ issueId: number,
+    params: PreviewTransferIssuesIssueIdTransferGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>,
+          TError,
+          Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function usePreviewTransferIssuesIssueIdTransferGet<TData = Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>, TError = HTTPValidationError>(
+ issueId: number,
+    params: PreviewTransferIssuesIssueIdTransferGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Preview Transfer
+ */
+
+export function usePreviewTransferIssuesIssueIdTransferGet<TData = Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>, TError = HTTPValidationError>(
+ issueId: number,
+    params: PreviewTransferIssuesIssueIdTransferGetParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof previewTransferIssuesIssueIdTransferGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getPreviewTransferIssuesIssueIdTransferGetQueryOptions(issueId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+/**
+ * Move the issue, and its sub-issues, to another team (#98).
+ *
+ * It takes the target team's next number, and whatever does not exist on the
+ * target team is remapped or cleared -- see `lib_softtrack/transfers.py`.
+ * Needs write access to both teams.
+ * @summary Transfer Issue
+ */
+export const transferIssueIssuesIssueIdTransferPost = (
+    issueId: number,
+    issueTransfer: IssueTransfer,
+ signal?: AbortSignal
+) => {
+
+
+      return apiClient<TransferResult>(
+      {url: `/issues/${issueId}/transfer`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: issueTransfer, signal
+    },
+      );
+    }
+
+
+
+
+export const getTransferIssueIssuesIssueIdTransferPostMutationKey = () => ['transferIssueIssuesIssueIdTransferPost'] as const;
+
+export const getTransferIssueIssuesIssueIdTransferPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferIssueIssuesIssueIdTransferPost>>, TError,TransferIssueIssuesIssueIdTransferPostMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof transferIssueIssuesIssueIdTransferPost>>, TError,TransferIssueIssuesIssueIdTransferPostMutationVariables, TContext> => {
+
+const mutationKey = getTransferIssueIssuesIssueIdTransferPostMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof transferIssueIssuesIssueIdTransferPost>>, TransferIssueIssuesIssueIdTransferPostMutationVariables> = (props) => {
+          const {issueId,data} = props ?? {};
+
+          return  transferIssueIssuesIssueIdTransferPost(issueId,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TransferIssueIssuesIssueIdTransferPostMutationResult = NonNullable<Awaited<ReturnType<typeof transferIssueIssuesIssueIdTransferPost>>>
+    export type TransferIssueIssuesIssueIdTransferPostMutationBody = IssueTransfer
+    export type TransferIssueIssuesIssueIdTransferPostMutationError = HTTPValidationError
+    export type TransferIssueIssuesIssueIdTransferPostMutationVariables = {issueId: number;data: IssueTransfer}
+
+    /**
+ * @summary Transfer Issue
+ */
+export const useTransferIssueIssuesIssueIdTransferPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof transferIssueIssuesIssueIdTransferPost>>, TError,TransferIssueIssuesIssueIdTransferPostMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof transferIssueIssuesIssueIdTransferPost>>,
+        TError,
+        TransferIssueIssuesIssueIdTransferPostMutationVariables,
+        TContext
+      > => {
+      return useMutation(getTransferIssueIssuesIssueIdTransferPostMutationOptions(options), queryClient);
     }

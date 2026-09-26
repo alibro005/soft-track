@@ -25,9 +25,13 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  ApiTokenCreate,
+  ApiTokenCreated,
+  ApiTokenRead,
   AuthConfig,
   BodyLoginAuthLoginPost,
   ConnectedIdentity,
+  ForgotPassword,
   HTTPValidationError,
   InviteRead,
   OAuthExchange,
@@ -35,6 +39,7 @@ import type {
   OAuthLinkTicket,
   OAuthLinked,
   PasswordChange,
+  ResetPassword,
   Token,
   UserCreate,
   UserMe,
@@ -313,6 +318,150 @@ export const useLoginAuthLoginPost = <TError = HTTPValidationError,
       return useMutation(getLoginAuthLoginPostMutationOptions(options), queryClient);
     }
     /**
+ * Email a single-use link for choosing a new password.
+ *
+ * Always 204, whether or not the address has an account, so the answer
+ * cannot be used to find out which addresses do. The mail goes out after
+ * the response for the same reason: an SMTP round trip is slow enough to
+ * time.
+ * @summary Forgot Password
+ */
+export const forgotPasswordAuthForgotPasswordPost = (
+    forgotPassword: ForgotPassword,
+ signal?: AbortSignal
+) => {
+
+
+      return apiClient<void>(
+      {url: `/auth/forgot-password`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: forgotPassword, signal
+    },
+      );
+    }
+
+
+
+
+export const getForgotPasswordAuthForgotPasswordPostMutationKey = () => ['forgotPasswordAuthForgotPasswordPost'] as const;
+
+export const getForgotPasswordAuthForgotPasswordPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forgotPasswordAuthForgotPasswordPost>>, TError,ForgotPasswordAuthForgotPasswordPostMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof forgotPasswordAuthForgotPasswordPost>>, TError,ForgotPasswordAuthForgotPasswordPostMutationVariables, TContext> => {
+
+const mutationKey = getForgotPasswordAuthForgotPasswordPostMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof forgotPasswordAuthForgotPasswordPost>>, ForgotPasswordAuthForgotPasswordPostMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  forgotPasswordAuthForgotPasswordPost(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ForgotPasswordAuthForgotPasswordPostMutationResult = NonNullable<Awaited<ReturnType<typeof forgotPasswordAuthForgotPasswordPost>>>
+    export type ForgotPasswordAuthForgotPasswordPostMutationBody = ForgotPassword
+    export type ForgotPasswordAuthForgotPasswordPostMutationError = HTTPValidationError
+    export type ForgotPasswordAuthForgotPasswordPostMutationVariables = {data: ForgotPassword}
+
+    /**
+ * @summary Forgot Password
+ */
+export const useForgotPasswordAuthForgotPasswordPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forgotPasswordAuthForgotPasswordPost>>, TError,ForgotPasswordAuthForgotPasswordPostMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof forgotPasswordAuthForgotPasswordPost>>,
+        TError,
+        ForgotPasswordAuthForgotPasswordPostMutationVariables,
+        TContext
+      > => {
+      return useMutation(getForgotPasswordAuthForgotPasswordPostMutationOptions(options), queryClient);
+    }
+    /**
+ * Set a new password with the token from a reset link.
+ *
+ * The link works once. Every session the account had is signed out, and
+ * the next step is signing in with the new password.
+ * @summary Reset Password
+ */
+export const resetPasswordAuthResetPasswordPost = (
+    resetPassword: ResetPassword,
+ signal?: AbortSignal
+) => {
+
+
+      return apiClient<void>(
+      {url: `/auth/reset-password`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: resetPassword, signal
+    },
+      );
+    }
+
+
+
+
+export const getResetPasswordAuthResetPasswordPostMutationKey = () => ['resetPasswordAuthResetPasswordPost'] as const;
+
+export const getResetPasswordAuthResetPasswordPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPasswordAuthResetPasswordPost>>, TError,ResetPasswordAuthResetPasswordPostMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof resetPasswordAuthResetPasswordPost>>, TError,ResetPasswordAuthResetPasswordPostMutationVariables, TContext> => {
+
+const mutationKey = getResetPasswordAuthResetPasswordPostMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resetPasswordAuthResetPasswordPost>>, ResetPasswordAuthResetPasswordPostMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  resetPasswordAuthResetPasswordPost(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResetPasswordAuthResetPasswordPostMutationResult = NonNullable<Awaited<ReturnType<typeof resetPasswordAuthResetPasswordPost>>>
+    export type ResetPasswordAuthResetPasswordPostMutationBody = ResetPassword
+    export type ResetPasswordAuthResetPasswordPostMutationError = HTTPValidationError
+    export type ResetPasswordAuthResetPasswordPostMutationVariables = {data: ResetPassword}
+
+    /**
+ * @summary Reset Password
+ */
+export const useResetPasswordAuthResetPasswordPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPasswordAuthResetPasswordPost>>, TError,ResetPasswordAuthResetPasswordPostMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resetPasswordAuthResetPasswordPost>>,
+        TError,
+        ResetPasswordAuthResetPasswordPostMutationVariables,
+        TContext
+      > => {
+      return useMutation(getResetPasswordAuthResetPasswordPostMutationOptions(options), queryClient);
+    }
+    /**
  * @summary Me
  */
 export const meAuthMeGet = (
@@ -538,6 +687,237 @@ export const useChangeMyPasswordAuthMePasswordPost = <TError = HTTPValidationErr
         TContext
       > => {
       return useMutation(getChangeMyPasswordAuthMePasswordPostMutationOptions(options), queryClient);
+    }
+    /**
+ * Your personal API tokens, without their secrets.
+ * @summary List Api Tokens
+ */
+export const listApiTokensAuthMeTokensGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return apiClient<ApiTokenRead[]>(
+      {url: `/auth/me/tokens`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getListApiTokensAuthMeTokensGetQueryKey = () => {
+    return [
+    `/auth/me/tokens`
+    ] as const;
+    }
+
+
+export const getListApiTokensAuthMeTokensGetQueryOptions = <TData = Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListApiTokensAuthMeTokensGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>> = ({ signal }) => listApiTokensAuthMeTokensGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListApiTokensAuthMeTokensGetQueryResult = NonNullable<Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>>
+export type ListApiTokensAuthMeTokensGetQueryError = unknown
+
+
+export function useListApiTokensAuthMeTokensGet<TData = Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>,
+          TError,
+          Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListApiTokensAuthMeTokensGet<TData = Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>,
+          TError,
+          Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListApiTokensAuthMeTokensGet<TData = Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List Api Tokens
+ */
+
+export function useListApiTokensAuthMeTokensGet<TData = Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listApiTokensAuthMeTokensGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListApiTokensAuthMeTokensGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+/**
+ * Make a token for a script: `Authorization: Bearer softtrack_…`.
+ *
+ * The response is the only time the secret is shown. It acts as you, with
+ * your permissions, until it expires or is revoked. Tokens can only be
+ * managed from a signed-in session, never with another token.
+ * @summary Create Api Token
+ */
+export const createApiTokenAuthMeTokensPost = (
+    apiTokenCreate: ApiTokenCreate,
+ signal?: AbortSignal
+) => {
+
+
+      return apiClient<ApiTokenCreated>(
+      {url: `/auth/me/tokens`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: apiTokenCreate, signal
+    },
+      );
+    }
+
+
+
+
+export const getCreateApiTokenAuthMeTokensPostMutationKey = () => ['createApiTokenAuthMeTokensPost'] as const;
+
+export const getCreateApiTokenAuthMeTokensPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createApiTokenAuthMeTokensPost>>, TError,CreateApiTokenAuthMeTokensPostMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof createApiTokenAuthMeTokensPost>>, TError,CreateApiTokenAuthMeTokensPostMutationVariables, TContext> => {
+
+const mutationKey = getCreateApiTokenAuthMeTokensPostMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createApiTokenAuthMeTokensPost>>, CreateApiTokenAuthMeTokensPostMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  createApiTokenAuthMeTokensPost(data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateApiTokenAuthMeTokensPostMutationResult = NonNullable<Awaited<ReturnType<typeof createApiTokenAuthMeTokensPost>>>
+    export type CreateApiTokenAuthMeTokensPostMutationBody = ApiTokenCreate
+    export type CreateApiTokenAuthMeTokensPostMutationError = HTTPValidationError
+    export type CreateApiTokenAuthMeTokensPostMutationVariables = {data: ApiTokenCreate}
+
+    /**
+ * @summary Create Api Token
+ */
+export const useCreateApiTokenAuthMeTokensPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createApiTokenAuthMeTokensPost>>, TError,CreateApiTokenAuthMeTokensPostMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createApiTokenAuthMeTokensPost>>,
+        TError,
+        CreateApiTokenAuthMeTokensPostMutationVariables,
+        TContext
+      > => {
+      return useMutation(getCreateApiTokenAuthMeTokensPostMutationOptions(options), queryClient);
+    }
+    /**
+ * Revoke a token. It stops working on the very next request.
+ * @summary Revoke Api Token
+ */
+export const revokeApiTokenAuthMeTokensTokenIdDelete = (
+    tokenId: number,
+ signal?: AbortSignal
+) => {
+
+
+      return apiClient<void>(
+      {url: `/auth/me/tokens/${tokenId}`, method: 'DELETE', signal
+    },
+      );
+    }
+
+
+
+
+export const getRevokeApiTokenAuthMeTokensTokenIdDeleteMutationKey = () => ['revokeApiTokenAuthMeTokensTokenIdDelete'] as const;
+
+export const getRevokeApiTokenAuthMeTokensTokenIdDeleteMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeApiTokenAuthMeTokensTokenIdDelete>>, TError,RevokeApiTokenAuthMeTokensTokenIdDeleteMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof revokeApiTokenAuthMeTokensTokenIdDelete>>, TError,RevokeApiTokenAuthMeTokensTokenIdDeleteMutationVariables, TContext> => {
+
+const mutationKey = getRevokeApiTokenAuthMeTokensTokenIdDeleteMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeApiTokenAuthMeTokensTokenIdDelete>>, RevokeApiTokenAuthMeTokensTokenIdDeleteMutationVariables> = (props) => {
+          const {tokenId} = props ?? {};
+
+          return  revokeApiTokenAuthMeTokensTokenIdDelete(tokenId,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeApiTokenAuthMeTokensTokenIdDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof revokeApiTokenAuthMeTokensTokenIdDelete>>>
+
+    export type RevokeApiTokenAuthMeTokensTokenIdDeleteMutationError = HTTPValidationError
+    export type RevokeApiTokenAuthMeTokensTokenIdDeleteMutationVariables = {tokenId: number}
+
+    /**
+ * @summary Revoke Api Token
+ */
+export const useRevokeApiTokenAuthMeTokensTokenIdDelete = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeApiTokenAuthMeTokensTokenIdDelete>>, TError,RevokeApiTokenAuthMeTokensTokenIdDeleteMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof revokeApiTokenAuthMeTokensTokenIdDelete>>,
+        TError,
+        RevokeApiTokenAuthMeTokensTokenIdDeleteMutationVariables,
+        TContext
+      > => {
+      return useMutation(getRevokeApiTokenAuthMeTokensTokenIdDeleteMutationOptions(options), queryClient);
     }
     /**
  * @summary Sign Out Everywhere Route

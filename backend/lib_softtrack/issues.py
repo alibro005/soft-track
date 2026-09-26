@@ -1,19 +1,20 @@
 """Issue services, including the assembly of the denormalised IssueRead payload."""
 
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import HTTPException
-from sqlalchemy import func, or_
+from sqlalchemy import case, func, or_
 from sqlmodel import Session, select
 
 from lib_identity.models.identity import UserPublic
 from lib_softtrack import attachments as attachments_service
+from lib_softtrack import outbound
 from lib_softtrack.models.issues import (
     IssueBulkChanges,
     IssueBulkDelete,
     IssueBulkUpdate,
+    IssueMove,
     IssueCreate,
     IssueRead,
     IssueUpdate,
@@ -25,26 +26,39 @@ from lib_softtrack.history import record_changes, record_creation, snapshot
 from lib_softtrack import notifications as notifications_service
 from lib_softtrack import automations as automations_service
 from lib_softtrack import integrations as integrations_service
+from lib_softtrack import reactions as reactions_service
 from lib_softtrack import rules as rules_service
 from lib_softtrack.links import open_blocker_counts
 from lib_softtrack.tables import (
     Comment,
     Cycle,
+    DueFilter,
     Issue,
     IssueEvent,
     IssueLabelLink,
     IssueLink,
     IssuePriority,
+    IssueSort,
+    IssueType,
     Label,
     Project,
+    SortDirection,
     Team,
     User,
+    WebhookEvent,
     WorkflowStatus,
 )
-from lib_softtrack.statuses import default_status, resolve_for_team
+from lib_softtrack.ranks import neighbour_or_404, rank_between, rank_order, top_rank
+from lib_softtrack.statuses import (
+    RESOLVED,
+    default_status,
+    in_category,
+    resolve_for_team,
+)
 from lib_softtrack.storage import Storage
 from lib_softtrack.subissues import child_progress, detach_children, validate_parent
 from lib_softtrack.teams import get_team_or_404, is_team_member, require_team_member
+from lib_utils.errors import ErrorCode, api_error
 
 
 def _parent_ref(issue: Issue, session: Session) -> Optional[ParentRef]:
@@ -86,10 +100,13 @@ def issue_to_read(issue: Issue, session: Session) -> IssueRead:
         description=issue.description,
         status=StatusRead.model_validate(session.get(WorkflowStatus, issue.status_id)),
         priority=issue.priority,
+        type=issue.type,
+        rank=issue.rank,
         assignee=UserPublic.model_validate(assignee) if assignee else None,
         estimate=issue.estimate,
         blocked_by_count=open_blocker_counts(session, [issue.id]).get(issue.id, 0),
         cycle_id=issue.cycle_id,
+        due_date=issue.due_date,
         external_key=issue.external_key,
         parent=_parent_ref(issue, session),
         completed_child_count=done,
@@ -168,6 +185,8 @@ def _expand_issues(issues: list[Issue], session: Session) -> list[IssueRead]:
             description=issue.description,
             status=StatusRead.model_validate(statuses[issue.status_id]),
             priority=issue.priority,
+            type=issue.type,
+            rank=issue.rank,
             assignee=(
                 UserPublic.model_validate(users[issue.assignee_id])
                 if issue.assignee_id
@@ -176,6 +195,7 @@ def _expand_issues(issues: list[Issue], session: Session) -> list[IssueRead]:
             estimate=issue.estimate,
             blocked_by_count=blocker_counts.get(issue.id, 0),
             cycle_id=issue.cycle_id,
+            due_date=issue.due_date,
             external_key=issue.external_key,
             creator=UserPublic.model_validate(users[issue.creator_id]),
             labels=labels_by_issue.get(issue.id, []),
@@ -215,7 +235,9 @@ def set_labels(issue_id: int, label_ids: list[int], session: Session) -> None:
 def get_issue_or_404(session: Session, issue_id: int) -> Issue:
     issue = session.get(Issue, issue_id)
     if not issue:
-        raise HTTPException(status_code=404, detail="Issue not found")
+        raise api_error(
+            status_code=404, code=ErrorCode.issue_not_found, detail="Issue not found"
+        )
     return issue
 
 
@@ -224,6 +246,7 @@ def create_issue(
 ) -> IssueRead:
     team = get_team_or_404(team_id, session)
     require_team_member(team_id, current_user, session)
+    _require_on_team(session, Project, payload.project_id, team_id, "project")
 
     number = team.next_issue_number
     team.next_issue_number = number + 1
@@ -240,9 +263,13 @@ def create_issue(
             or default_status(session, team_id)
         ).id,
         priority=payload.priority,
+        type=payload.type,
         assignee_id=payload.assignee_id,
         estimate=payload.estimate,
         cycle_id=payload.cycle_id,
+        due_date=payload.due_date,
+        # On top of its column, where a new card is looked for.
+        rank=top_rank(session, team_id),
         creator_id=current_user.id,
     )
 
@@ -255,6 +282,13 @@ def create_issue(
 
     record_creation(session, issue, current_user)
     notifications_service.on_issue_created(session, issue, current_user)
+    outbound.emit(
+        session,
+        issue.team_id,
+        WebhookEvent.issue_created,
+        lambda: {"issue": issue_to_read(issue, session)},
+        current_user,
+    )
     session.commit()
 
     if payload.label_ids:
@@ -284,6 +318,13 @@ def list_issues(
     label_id: Optional[int] = None,
     parent_id: Optional[int] = None,
     cycle_id: Optional[int] = None,
+    due: Optional[DueFilter] = None,
+    today: Optional[date] = None,
+    due_from: Optional[date] = None,
+    due_to: Optional[date] = None,
+    type: Optional[IssueType] = None,
+    sort: IssueSort = IssueSort.created,
+    direction: SortDirection = SortDirection.desc,
     limit: int = DEFAULT_LIMIT,
     offset: int = 0,
 ) -> Page[IssueRead]:
@@ -325,6 +366,16 @@ def list_issues(
         filters.append(Issue.parent_id == parent_id)
     if cycle_id is not None:
         filters.append(Issue.cycle_id == cycle_id)
+    if type is not None:
+        filters.append(Issue.type == type)
+    if due is not None:
+        filters.append(_due_filter(due, today or datetime.now(timezone.utc).date()))
+    # A date range, both ends inclusive (#105): the calendar asks for the days
+    # its grid shows. Either end alone is an open range.
+    if due_from is not None:
+        filters.append(Issue.due_date >= due_from)
+    if due_to is not None:
+        filters.append(Issue.due_date <= due_to)
 
     # `total` counts everything matching the filters, not the page, so the UI
     # can show "50 of 1,204" without a second request.
@@ -333,7 +384,7 @@ def list_issues(
     issues = session.exec(
         select(Issue)
         .where(*filters)
-        .order_by(Issue.number.desc())
+        .order_by(*_ordering(sort, direction, rank_order(session)))
         .offset(offset)
         .limit(limit)
     ).all()
@@ -361,7 +412,9 @@ def get_issue_by_number(
         select(Issue).where(Issue.team_id == team_id, Issue.number == number)
     ).one_or_none()
     if not issue:
-        raise HTTPException(status_code=404, detail="Issue not found")
+        raise api_error(
+            status_code=404, code=ErrorCode.issue_not_found, detail="Issue not found"
+        )
     return issue_to_read(issue, session)
 
 
@@ -399,6 +452,7 @@ def _apply_update(
     issue's changes in one transaction.
     """
     before = snapshot(issue)
+    hook_before = outbound.snapshot(issue)
     # Three snapshots of the same row, and three different questions about it.
     # History tracks what can be charted, notifications track what somebody
     # would want to be told about, and automation tracks what a rule can fire
@@ -414,6 +468,10 @@ def _apply_update(
         # Validate before assigning, so a rejected parent leaves the issue
         # exactly as it was rather than half-updated.
         validate_parent(session, issue, data["parent_id"])
+    # The check the bulk edit makes up front, made here for the single PATCH
+    # too: another team's project satisfies the foreign key, and would file
+    # the issue under an epic its own team cannot open.
+    _require_on_team(session, Project, data.get("project_id"), issue.team_id, "project")
     for field, value in data.items():
         setattr(issue, field, value)
     issue.updated_at = datetime.now(timezone.utc)
@@ -424,10 +482,102 @@ def _apply_update(
 
     record_changes(session, issue, before, current_user)
     notifications_service.on_issue_updated(session, issue, watched_before, current_user)
+    # Before the rules run, so what a person did and what a rule then did
+    # arrive as separate deliveries -- the same split history keeps.
+    outbound.issue_changed(session, issue, hook_before, current_user)
     # Last, so a rule reads the issue as the update left it -- and so its own
     # changes are recorded as a separate step in the history rather than
     # folded into the one the person made.
     rules_service.on_issue_updated(session, issue, rule_before, current_user)
+
+
+#: Most urgent highest, so "descending" reads as "most urgent first" -- the
+#: way a person means "sort by priority".
+_PRIORITY_RANK = {
+    IssuePriority.urgent: 4,
+    IssuePriority.high: 3,
+    IssuePriority.medium: 2,
+    IssuePriority.low: 1,
+    IssuePriority.no_priority: 0,
+}
+
+
+def _ordering(sort: IssueSort, direction: SortDirection, rank) -> list:
+    """ORDER BY for the issue list (#88).
+
+    Every ordering ends on the issue number, newest first, so issues that
+    tie -- the same priority, no estimate -- come back in a stable order
+    and a page boundary never splits or repeats them.
+    """
+    descending = direction == SortDirection.desc
+    newest_first = Issue.number.desc()
+    if sort == IssueSort.created:
+        return [newest_first if descending else Issue.number.asc()]
+    if sort == IssueSort.rank:
+        key = rank
+    elif sort == IssueSort.updated:
+        key = Issue.updated_at
+    elif sort == IssueSort.priority:
+        key = case(
+            *[(Issue.priority == p, rank) for p, rank in _PRIORITY_RANK.items()],
+            else_=0,
+        )
+    elif sort == IssueSort.title:
+        key = func.lower(Issue.title)
+    else:
+        # Unsized last whichever way round: an estimate of "none" is not a
+        # small estimate, and sorting it among the ones would say it was.
+        return [
+            Issue.estimate.is_(None),
+            Issue.estimate.desc() if descending else Issue.estimate.asc(),
+            newest_first,
+        ]
+    return [key.desc() if descending else key.asc(), newest_first]
+
+
+def _due_filter(due: DueFilter, today: date):
+    """One of the three due-date questions, as a condition on Issue (#87)."""
+    if due == DueFilter.none:
+        return Issue.due_date == None  # noqa: E711 -- SQL IS NULL
+    if due == DueFilter.overdue:
+        # Late only while it is still open: finished work is not overdue,
+        # however late it was finished.
+        return (Issue.due_date < today) & ~in_category(*RESOLVED)
+    # Monday is 0, so this is the coming Sunday -- or today, on a Sunday.
+    end_of_week = today + timedelta(days=6 - today.weekday())
+    return (Issue.due_date >= today) & (Issue.due_date <= end_of_week)
+
+
+def move_issue(
+    session: Session, current_user: User, issue_id: int, payload: IssueMove
+) -> IssueRead:
+    """Drop a card between two others on the board, maybe in another column.
+
+    One row changes: the card's own rank, between its new neighbours'. A
+    change of column goes through the ordinary update path first, so it
+    records history, notifies and runs rules exactly as a status change from
+    the issue panel does.
+    """
+    issue = get_issue_or_404(session, issue_id)
+    require_team_member(issue.team_id, current_user, session)
+    above = neighbour_or_404(session, issue, payload.above_id)
+    below = neighbour_or_404(session, issue, payload.below_id)
+
+    if payload.status_id is not None and payload.status_id != issue.status_id:
+        _apply_update(
+            session, current_user, issue, {"status_id": payload.status_id}, None
+        )
+
+    if above is None and below is None:
+        # An empty column, or nothing said: the top, like a new card.
+        issue.rank = top_rank(session, issue.team_id)
+    else:
+        issue.rank = rank_between(session, above, below)
+    issue.updated_at = datetime.now(timezone.utc)
+    session.add(issue)
+    session.commit()
+    session.refresh(issue)
+    return issue_to_read(issue, session)
 
 
 def delete_issue(
@@ -479,6 +629,11 @@ def _delete_rows(session: Session, issue: Issue) -> list[str]:
     # again: the rows hold a foreign key here, and a link to the code for an
     # issue that no longer exists is not worth keeping.
     integrations_service.delete_links_for_issue(session, issue_id)
+    # And the time logged against it (#102). Imported here because the
+    # worklog service reads issues through this module.
+    from lib_softtrack import worklogs as worklogs_service
+
+    worklogs_service.delete_for_issue(session, issue_id)
     session.flush()
 
     # Attachments before comments: a comment attachment holds a foreign key to
@@ -486,6 +641,11 @@ def _delete_rows(session: Session, issue: Issue) -> list[str]:
     # rejects. The bytes are purged after the commit below -- an orphaned file
     # costs disk, an orphaned row costs a broken image on somebody's issue.
     storage_keys = attachments_service.take_keys_for_issue(session, issue_id)
+
+    # Reactions hold a foreign key to the comment, so they go first -- and are
+    # flushed first, for the reason given for notifications above.
+    reactions_service.delete_for_issue(session, issue_id)
+    session.flush()
 
     comments = session.exec(select(Comment).where(Comment.issue_id == issue_id)).all()
     for comment in comments:
@@ -553,8 +713,9 @@ def _team_issues_or_404(
     }
     missing = [issue_id for issue_id in wanted if issue_id not in found]
     if missing:
-        raise HTTPException(
+        raise api_error(
             status_code=404,
+            code=ErrorCode.issues_not_found,
             detail="Issues not found on this team: "
             + ", ".join(str(issue_id) for issue_id in missing),
         )
@@ -574,7 +735,11 @@ def _require_on_team(
         return
     row = session.get(model, row_id)
     if row is None or row.team_id != team_id:
-        raise HTTPException(status_code=400, detail=f"No such {noun} on this team")
+        raise api_error(
+            status_code=400,
+            code=ErrorCode.not_on_this_team,
+            detail=f"No such {noun} on this team",
+        )
 
 
 def _validate_bulk_changes(
@@ -586,14 +751,18 @@ def _validate_bulk_changes(
     for label_id in {*changes.add_label_ids, *changes.remove_label_ids}:
         _require_on_team(session, Label, label_id, team_id, "label")
     if set(changes.add_label_ids) & set(changes.remove_label_ids):
-        raise HTTPException(
-            status_code=400, detail="A label cannot be both added and removed."
+        raise api_error(
+            status_code=400,
+            code=ErrorCode.labels_conflict,
+            detail="A label cannot be both added and removed.",
         )
     if changes.assignee_id is not None and not is_team_member(
         team_id, changes.assignee_id, session
     ):
-        raise HTTPException(
-            status_code=400, detail="The assignee is not a member of this team."
+        raise api_error(
+            status_code=400,
+            code=ErrorCode.user_not_on_team,
+            detail="The assignee is not a member of this team.",
         )
 
 

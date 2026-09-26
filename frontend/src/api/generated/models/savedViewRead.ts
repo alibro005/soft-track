@@ -5,6 +5,9 @@
  * An open-source, self-hostable issue tracker inspired by Linear.
  * OpenAPI spec version: 0.1.0
  */
+import type { IssueGrouping } from './issueGrouping';
+import type { IssueSort } from './issueSort';
+import type { SortDirection } from './sortDirection';
 import type { UserPublic } from './userPublic';
 import type { ViewFilters } from './viewFilters';
 
@@ -15,6 +18,9 @@ export interface SavedViewRead {
   owner: UserPublic;
   is_shared: boolean;
   filters: ViewFilters;
+  group_by: IssueGrouping;
+  sort?: IssueSort | null;
+  sort_direction?: SortDirection | null;
   created_at: string;
   updated_at: string;
 }

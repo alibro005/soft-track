@@ -36,3 +36,26 @@ Two things that follow from views being real rows rather than a blob of JSON:
 a filter pointing at another team's label is refused when the view is saved
 rather than silently matching nothing for ever, and deleting a cycle clears it
 from the views that filtered on it.
+
+**A view also remembers how the board was grouped:** by status, or by project
+(#63). The grouping is part of the link as `group=project`, next to the filter
+keys. It's left out for the default, so every link sent before grouping existed
+still opens exactly as it did. The `project` key still means "filter to this
+project", as it always has. A view is marked as showing only when both its
+filters and its grouping match what's on screen.
+
+**The list can be sorted** by created, updated, priority, estimate or title,
+in either direction (#88). "Descending" puts the newest, most urgent, largest
+or Z first. Unestimated issues come last either way, because "not sized yet"
+isn't a small estimate. Ties are broken newest first, so paging never splits
+or repeats issues. Like the grouping, the sort is in the link as `sort=` and
+`dir=`, left out when it's the default (newest first), and saved views keep it.
+
+**The board's order is arranged by hand** (#88). Dragging a card within its
+column keeps it where it was dropped, and dropping it among another column's
+cards keeps its place there too. New issues start at the top of their
+column. Behind this is one order for the whole team, stored as a short key per
+issue (fractional indexing, `backend/lib_utils/ranking.py`). A move only
+rewrites the moved card's key, between the keys of its new neighbours, so a
+reorder never renumbers the column. Upgrading gives every existing issue a key
+in the order the board already showed, so nothing moves.

@@ -110,6 +110,76 @@
         }
       }
     },
+    "/auth/forgot-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Forgot Password",
+        "description": "Email a single-use link for choosing a new password.\n\nAlways 204, whether or not the address has an account, so the answer\ncannot be used to find out which addresses do. The mail goes out after\nthe response for the same reason: an SMTP round trip is slow enough to\ntime.",
+        "operationId": "forgot_password_auth_forgot_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPassword"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reset Password",
+        "description": "Set a new password with the token from a reset link.\n\nThe link works once. Every session the account had is signed out, and\nthe next step is signing in with the new password.",
+        "operationId": "reset_password_auth_reset_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPassword"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/me": {
       "get": {
         "tags": [
@@ -225,6 +295,123 @@
             "OAuth2PasswordBearer": []
           }
         ]
+      }
+    },
+    "/auth/me/tokens": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "List Api Tokens",
+        "description": "Your personal API tokens, without their secrets.",
+        "operationId": "list_api_tokens_auth_me_tokens_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApiTokenRead"
+                  },
+                  "type": "array",
+                  "title": "Response List Api Tokens Auth Me Tokens Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Create Api Token",
+        "description": "Make a token for a script: `Authorization: Bearer softtrack_\u2026`.\n\nThe response is the only time the secret is shown. It acts as you, with\nyour permissions, until it expires or is revoked. Tokens can only be\nmanaged from a signed-in session, never with another token.",
+        "operationId": "create_api_token_auth_me_tokens_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiTokenCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiTokenCreated"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/auth/me/tokens/{token_id}": {
+      "delete": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Revoke Api Token",
+        "description": "Revoke a token. It stops working on the very next request.",
+        "operationId": "revoke_api_token_auth_me_tokens__token_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "token_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Token Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/auth/me/sign-out-everywhere": {
@@ -1078,6 +1265,7 @@
           "invites"
         ],
         "summary": "Create Invite",
+        "description": "Invite an address to the team, or refresh an existing invitation.\n\nThe response carries the link to copy, as it always has. With\n`send_email` it is also emailed to the address, after the response.",
         "operationId": "create_invite_teams__team_id__invites_post",
         "security": [
           {
@@ -1921,6 +2109,121 @@
             "description": "Only issues in this cycle."
           },
           {
+            "name": "due",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DueFilter"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Overdue, due this week, or with no due date.",
+              "title": "Due"
+            },
+            "description": "Overdue, due this week, or with no due date."
+          },
+          {
+            "name": "today",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The caller's own date, which `due` is measured from. Defaults to today in UTC; a client should send its local date, so that 'this week' is its week.",
+              "title": "Today"
+            },
+            "description": "The caller's own date, which `due` is measured from. Defaults to today in UTC; a client should send its local date, so that 'this week' is its week."
+          },
+          {
+            "name": "due_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only issues due on or after this day.",
+              "title": "Due From"
+            },
+            "description": "Only issues due on or after this day."
+          },
+          {
+            "name": "due_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only issues due on or before this day.",
+              "title": "Due To"
+            },
+            "description": "Only issues due on or before this day."
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/IssueType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only issues of this type.",
+              "title": "Type"
+            },
+            "description": "Only issues of this type."
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/IssueSort",
+              "description": "What to order by.",
+              "default": "created"
+            },
+            "description": "What to order by."
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SortDirection",
+              "description": "desc is newest, most urgent, largest, or Z first.",
+              "default": "desc"
+            },
+            "description": "desc is newest, most urgent, largest, or Z first."
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -2168,6 +2471,116 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/IssueRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/issues/{issue_id}/move": {
+      "post": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Move Issue",
+        "description": "Place a card between two others on the board, optionally in another\ncolumn. Its neighbours are named, never its new position's key -- the\nserver works that out, so a client never has to.",
+        "operationId": "move_issue_issues__issue_id__move_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Issue Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueMove"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/issues/{issue_id}/events": {
+      "get": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "List Issue Events",
+        "description": "What has happened to an issue: status, priority, assignee, estimate,\ncycle and project changes, oldest first, with who made each one.\n\nThe latest 100 changes. The values an issue was created with are its\nstarting point rather than changes, and are left out.",
+        "operationId": "list_issue_events_issues__issue_id__events_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Issue Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IssueEventRead"
+                  },
+                  "title": "Response List Issue Events Issues  Issue Id  Events Get"
                 }
               }
             }
@@ -2478,6 +2891,119 @@
         }
       }
     },
+    "/issues/{issue_id}/transfer": {
+      "get": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Preview Transfer",
+        "description": "What moving the issue to `team_id` would change, without changing it.",
+        "operationId": "preview_transfer_issues__issue_id__transfer_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Issue Id"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "issues"
+        ],
+        "summary": "Transfer Issue",
+        "description": "Move the issue, and its sub-issues, to another team (#98).\n\nIt takes the target team's next number, and whatever does not exist on the\ntarget team is remapped or cleared -- see `lib_softtrack/transfers.py`.\nNeeds write access to both teams.",
+        "operationId": "transfer_issue_issues__issue_id__transfer_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Issue Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueTransfer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/issues/{issue_id}/comments": {
       "post": {
         "tags": [
@@ -2586,6 +3112,221 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Page_CommentRead_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/comments/{comment_id}": {
+      "patch": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Update Comment",
+        "description": "Edit your own comment's body. Nobody else's, a team admin's included.",
+        "operationId": "update_comment_comments__comment_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Comment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Delete Comment",
+        "description": "Delete your own comment, or -- as a team admin -- anybody's.\n\nIts attachments are deleted with it.",
+        "operationId": "delete_comment_comments__comment_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Comment Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/comments/{comment_id}/reactions/{emoji}": {
+      "put": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Add Reaction",
+        "description": "React to a comment. Idempotent: reacting twice is reacting once.\n\nReturns the comment's reactions as they now stand, so the client can\nredraw the chips without fetching the thread again.",
+        "operationId": "add_reaction_comments__comment_id__reactions__emoji__put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Comment Id"
+            }
+          },
+          {
+            "name": "emoji",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ReactionEmoji"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReactionSummary"
+                  },
+                  "title": "Response Add Reaction Comments  Comment Id  Reactions  Emoji  Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Remove Reaction",
+        "description": "Take your own reaction back. Removing one you never gave is a no-op.",
+        "operationId": "remove_reaction_comments__comment_id__reactions__emoji__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Comment Id"
+            }
+          },
+          {
+            "name": "emoji",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ReactionEmoji"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReactionSummary"
+                  },
+                  "title": "Response Remove Reaction Comments  Comment Id  Reactions  Emoji  Delete"
                 }
               }
             }
@@ -2732,6 +3473,22 @@
             "schema": {
               "type": "integer",
               "title": "Attachment Id"
+            }
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Range"
             }
           }
         ],
@@ -3188,6 +3945,54 @@
         }
       }
     },
+    "/projects/{project_id}/burnup": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Project Burnup",
+        "description": "A project's scope against its completed work, each day, in issues and points.\n\nStarts on the first day history records anything about the project. Points\nonly cover sized issues; `unestimated_issues` says how many are not sized,\nso the points total is not mistaken for the whole epic.",
+        "operationId": "project_burnup_projects__project_id__burnup_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectBurnup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/teams/{team_id}/velocity": {
       "get": {
         "tags": [
@@ -3353,6 +4158,114 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreatedVsResolved"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cycles/{cycle_id}/time-spent": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Cycle Time Spent",
+        "description": "Time logged during the cycle on issues that were ever in it, by person (#102).",
+        "operationId": "cycle_time_spent_cycles__cycle_id__time_spent_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cycle_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Cycle Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeSpent"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{team_id}/time-spent": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Team Time Spent",
+        "description": "Time logged on the team's issues over the last `days` days, by person (#102).",
+        "operationId": "team_time_spent_teams__team_id__time_spent_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeSpent"
                 }
               }
             }
@@ -4172,6 +5085,516 @@
                   "$ref": "#/components/schemas/SavedViews"
                 }
               }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{team_id}/issue-templates": {
+      "get": {
+        "tags": [
+          "templates"
+        ],
+        "summary": "List Templates",
+        "description": "The team's description templates, in picker order. Any member may read.",
+        "operationId": "list_templates_teams__team_id__issue_templates_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IssueTemplateRead"
+                  },
+                  "title": "Response List Templates Teams  Team Id  Issue Templates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "templates"
+        ],
+        "summary": "Create Template",
+        "description": "Add a template. Team admins only.",
+        "operationId": "create_template_teams__team_id__issue_templates_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueTemplateCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueTemplateRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{team_id}/issue-templates/order": {
+      "put": {
+        "tags": [
+          "templates"
+        ],
+        "summary": "Reorder Templates",
+        "description": "Set the picker's order. Takes every template at once.",
+        "operationId": "reorder_templates_teams__team_id__issue_templates_order_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueTemplateOrder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IssueTemplateRead"
+                  },
+                  "title": "Response Reorder Templates Teams  Team Id  Issue Templates Order Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/issue-templates/{template_id}": {
+      "patch": {
+        "tags": [
+          "templates"
+        ],
+        "summary": "Update Template",
+        "operationId": "update_template_issue_templates__template_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueTemplateUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueTemplateRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "templates"
+        ],
+        "summary": "Delete Template",
+        "operationId": "delete_template_issue_templates__template_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/issues/{issue_id}/worklogs": {
+      "get": {
+        "tags": [
+          "worklogs"
+        ],
+        "summary": "Issue Time",
+        "description": "Time spent on the issue: the total, who spent it, and every entry.",
+        "operationId": "issue_time_issues__issue_id__worklogs_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Issue Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueTime"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "worklogs"
+        ],
+        "summary": "Log Time",
+        "description": "Log time you spent on the issue, on one day.",
+        "operationId": "log_time_issues__issue_id__worklogs_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "issue_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Issue Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorklogCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorklogRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/worklogs/{worklog_id}": {
+      "patch": {
+        "tags": [
+          "worklogs"
+        ],
+        "summary": "Update Worklog",
+        "description": "Change one of your own entries.",
+        "operationId": "update_worklog_worklogs__worklog_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "worklog_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Worklog Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorklogUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorklogRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "worklogs"
+        ],
+        "summary": "Delete Worklog",
+        "description": "Delete one of your own entries.",
+        "operationId": "delete_worklog_worklogs__worklog_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "worklog_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Worklog Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{team_id}/events": {
+      "get": {
+        "tags": [
+          "realtime"
+        ],
+        "summary": "Team Events",
+        "description": "A server-sent event stream of what changes on the team (#103).\n\nEvents are invalidations -- `issue_changed {\"id\"}`, `comment_added\n{\"issue_id\"}`, `notification {}` for the caller's own inbox, and `resync`\nwhen the stream fell behind -- and never data: the client refetches\nthrough the ordinary endpoints. `close` means the stream is over and must\nnot be reopened as it was: the caller was signed out, deactivated or\nremoved from the team. A `: ping` comment every 25 seconds keeps proxies\nfrom dropping it.\n\nAuthenticated with the usual bearer header, which is why the browser\nreads this with `fetch` rather than `EventSource`: EventSource cannot send\none, and a token in the URL is exactly what this API refuses to do.",
+        "operationId": "team_events_teams__team_id__events_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {}
             }
           },
           "422": {
@@ -5112,6 +6535,307 @@
         }
       }
     },
+    "/teams/{team_id}/outbound-webhooks": {
+      "get": {
+        "tags": [
+          "outbound webhooks"
+        ],
+        "summary": "List Webhooks",
+        "description": "The team's outbound webhooks. Team admins only.",
+        "operationId": "list_webhooks_teams__team_id__outbound_webhooks_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OutboundWebhookRead"
+                  },
+                  "title": "Response List Webhooks Teams  Team Id  Outbound Webhooks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "outbound webhooks"
+        ],
+        "summary": "Create Webhook",
+        "description": "Post chosen events to a URL, signed with `X-SoftTrack-Signature`.\n\nThe URL must be public unless WEBHOOK_ALLOW_PRIVATE_TARGETS is set. The\nreply carries the signing secret -- the only time it is shown.",
+        "operationId": "create_webhook_teams__team_id__outbound_webhooks_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutboundWebhookCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboundWebhookCreated"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/outbound-webhooks/{webhook_id}": {
+      "patch": {
+        "tags": [
+          "outbound webhooks"
+        ],
+        "summary": "Update Webhook",
+        "operationId": "update_webhook_outbound_webhooks__webhook_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Webhook Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutboundWebhookUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutboundWebhookRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "outbound webhooks"
+        ],
+        "summary": "Delete Webhook",
+        "operationId": "delete_webhook_outbound_webhooks__webhook_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Webhook Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/outbound-webhooks/{webhook_id}/deliveries": {
+      "get": {
+        "tags": [
+          "outbound webhooks"
+        ],
+        "summary": "List Deliveries",
+        "description": "The latest deliveries, newest first, with the receiver's answer.",
+        "operationId": "list_deliveries_outbound_webhooks__webhook_id__deliveries_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Webhook Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WebhookDeliveryRead"
+                  },
+                  "title": "Response List Deliveries Outbound Webhooks  Webhook Id  Deliveries Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/outbound-webhooks/{webhook_id}/ping": {
+      "post": {
+        "tags": [
+          "outbound webhooks"
+        ],
+        "summary": "Ping Webhook",
+        "description": "Queue a `ping` delivery, to check the URL and the secret.",
+        "operationId": "ping_webhook_outbound_webhooks__webhook_id__ping_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "webhook_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Webhook Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -5259,6 +6983,146 @@
         "type": "object",
         "title": "AdminUserUpdate"
       },
+      "ApiTokenCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "expires_in_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 366.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires In Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ApiTokenCreate"
+      },
+      "ApiTokenCreated": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "hint",
+          "created_at",
+          "token"
+        ],
+        "title": "ApiTokenCreated",
+        "description": "Returned once, when the token is made. The only time the secret is seen."
+      },
+      "ApiTokenRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "hint": {
+            "type": "string",
+            "title": "Hint"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "hint",
+          "created_at"
+        ],
+        "title": "ApiTokenRead"
+      },
       "AssigneeLoad": {
         "properties": {
           "user": {
@@ -5292,6 +7156,16 @@
         ],
         "title": "AssigneeLoad",
         "description": "What one person is carrying. `user` is null for unassigned work."
+      },
+      "AttachmentPreview": {
+        "type": "string",
+        "enum": [
+          "image",
+          "pdf",
+          "text"
+        ],
+        "title": "AttachmentPreview",
+        "description": "How a file can be shown without downloading it (#101)."
       },
       "AttachmentRead": {
         "properties": {
@@ -5329,6 +7203,16 @@
           "is_image": {
             "type": "boolean",
             "title": "Is Image"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AttachmentPreview"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "url": {
             "type": "string",
@@ -5377,6 +7261,10 @@
             },
             "type": "array",
             "title": "Oauth Providers"
+          },
+          "password_reset": {
+            "type": "boolean",
+            "title": "Password Reset"
           }
         },
         "type": "object",
@@ -5384,7 +7272,8 @@
           "open_registration",
           "landing_page",
           "demo_credentials",
-          "oauth_providers"
+          "oauth_providers",
+          "password_reset"
         ],
         "title": "AuthConfig",
         "description": "What the sign-in pages need to know before anyone has authenticated."
@@ -5980,10 +7869,30 @@
             "title": "Attachments",
             "default": []
           },
+          "reactions": {
+            "items": {
+              "$ref": "#/components/schemas/ReactionSummary"
+            },
+            "type": "array",
+            "title": "Reactions",
+            "default": []
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "edited_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited At"
           }
         },
         "type": "object",
@@ -5995,6 +7904,21 @@
           "created_at"
         ],
         "title": "CommentRead"
+      },
+      "CommentUpdate": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "CommentUpdate",
+        "description": "A new body for a comment (#93). The body is the only thing that changes:\nits files stay as they were posted, and removing one is done on the file."
       },
       "ConnectedIdentity": {
         "properties": {
@@ -6343,6 +8267,16 @@
         "title": "DefaultViewUpdate",
         "description": "Null clears the default rather than setting one."
       },
+      "DueFilter": {
+        "type": "string",
+        "enum": [
+          "overdue",
+          "this_week",
+          "none"
+        ],
+        "title": "DueFilter",
+        "description": "The due-date questions the board can be narrowed to (#87).\n\nThree questions rather than a date range: they are what a standup asks,\nand \"this week\" means the viewer's week -- the client sends its own\ntoday, so a filter saved on a Sunday evening in Sydney does not quietly\nmean London's Sunday."
+      },
       "EstimateSummary": {
         "properties": {
           "total_points": {
@@ -6406,6 +8340,20 @@
           "counts"
         ],
         "title": "FlowPoint"
+      },
+      "ForgotPassword": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "ForgotPassword"
       },
       "GitProvider": {
         "type": "string",
@@ -6528,6 +8476,11 @@
           "role": {
             "$ref": "#/components/schemas/TeamRole",
             "default": "member"
+          },
+          "send_email": {
+            "type": "boolean",
+            "title": "Send Email",
+            "default": false
           }
         },
         "type": "object",
@@ -6616,6 +8569,18 @@
             "type": "string",
             "format": "date-time",
             "title": "Expires At"
+          },
+          "emailed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emailed At"
           }
         },
         "type": "object",
@@ -6632,7 +8597,7 @@
           "expires_at"
         ],
         "title": "InviteRead",
-        "description": "A pending invitation, as an admin of the team (or its recipient) sees it.\n\nCarries the token because there is no mail server: the link is copied out\nof this response and sent by whatever the team already uses. Only ever\nreturned to a team admin or to the person the invite is addressed to."
+        "description": "A pending invitation, as an admin of the team (or its recipient) sees it.\n\nCarries the token so the link can be copied out of this response and sent\nby whatever the team already uses -- which works on every instance, with\nor without a mail server. Only ever returned to a team admin or to the\nperson the invite is addressed to."
       },
       "IssueBulkChanges": {
         "properties": {
@@ -6796,6 +8761,10 @@
             "$ref": "#/components/schemas/IssuePriority",
             "default": "no_priority"
           },
+          "type": {
+            "$ref": "#/components/schemas/IssueType",
+            "default": "task"
+          },
           "assignee_id": {
             "anyOf": [
               {
@@ -6849,6 +8818,18 @@
             ],
             "title": "Cycle Id"
           },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
           "label_ids": {
             "items": {
               "type": "integer"
@@ -6863,6 +8844,108 @@
           "title"
         ],
         "title": "IssueCreate"
+      },
+      "IssueEventField": {
+        "type": "string",
+        "enum": [
+          "status",
+          "cycle",
+          "estimate",
+          "project",
+          "assignee",
+          "priority",
+          "due_date",
+          "team"
+        ],
+        "title": "IssueEventField",
+        "description": "Which field an IssueEvent records a change to."
+      },
+      "IssueEventRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "field": {
+            "$ref": "#/components/schemas/IssueEventField"
+          },
+          "old_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Value"
+          },
+          "new_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Value"
+          },
+          "old_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Label"
+          },
+          "new_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Label"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserPublic"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "field",
+          "created_at"
+        ],
+        "title": "IssueEventRead",
+        "description": "One change to one field of an issue, as the Activity feed shows it (#81).\n\n`old_value`/`new_value` are what the history stores: a status *category*\n(see `_status_category` in history.py), a priority, an estimate, or a\nrow id. For the id fields -- assignee, cycle, project -- the labels carry\nthe name it has now, or null when that row has since been deleted."
+      },
+      "IssueGrouping": {
+        "type": "string",
+        "enum": [
+          "status",
+          "project"
+        ],
+        "title": "IssueGrouping",
+        "description": "What the board's columns, and the list's sections, are made of.\n\nA saved view stores one (#63), so \"the planning view\" can open grouped by\nproject while \"my bugs\" opens by status. Status is the default because it\nis what the board always was."
       },
       "IssueLinkCreate": {
         "properties": {
@@ -6965,6 +9048,46 @@
         "type": "object",
         "title": "IssueLinks"
       },
+      "IssueMove": {
+        "properties": {
+          "above_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Above Id"
+          },
+          "below_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below Id"
+          },
+          "status_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Id"
+          }
+        },
+        "type": "object",
+        "title": "IssueMove",
+        "description": "Where a card was dropped on the board (#88).\n\nThe cards it landed between, as the board showed them: `above_id` is the\none now above it, `below_id` the one below. Either is null at the top or\nbottom of a column, and both are null in an empty one. `status_id` moves\nit to another column at the same time."
+      },
       "IssuePriority": {
         "type": "string",
         "enum": [
@@ -7030,6 +9153,13 @@
           "priority": {
             "$ref": "#/components/schemas/IssuePriority"
           },
+          "type": {
+            "$ref": "#/components/schemas/IssueType"
+          },
+          "rank": {
+            "type": "string",
+            "title": "Rank"
+          },
           "assignee": {
             "anyOf": [
               {
@@ -7065,6 +9195,18 @@
               }
             ],
             "title": "Cycle Id"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
           },
           "external_key": {
             "anyOf": [
@@ -7127,6 +9269,8 @@
           "title",
           "status",
           "priority",
+          "type",
+          "rank",
           "blocked_by_count",
           "child_count",
           "completed_child_count",
@@ -7135,6 +9279,187 @@
           "updated_at"
         ],
         "title": "IssueRead"
+      },
+      "IssueSort": {
+        "type": "string",
+        "enum": [
+          "created",
+          "updated",
+          "priority",
+          "estimate",
+          "title",
+          "rank"
+        ],
+        "title": "IssueSort",
+        "description": "What the issue list can be ordered by (#88)."
+      },
+      "IssueTemplateCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "body"
+        ],
+        "title": "IssueTemplateCreate"
+      },
+      "IssueTemplateOrder": {
+        "properties": {
+          "template_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Template Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "template_ids"
+        ],
+        "title": "IssueTemplateOrder",
+        "description": "Every template on the team, in the order the picker should list them.\n\nAll of them at once, like `StatusOrder` and for the same reason: two admins\ndragging would otherwise interleave into an order neither chose."
+      },
+      "IssueTemplateRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "team_id": {
+            "type": "integer",
+            "title": "Team Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "team_id",
+          "name",
+          "body",
+          "position",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "IssueTemplateRead"
+      },
+      "IssueTemplateUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "title": "IssueTemplateUpdate"
+      },
+      "IssueTime": {
+        "properties": {
+          "total_minutes": {
+            "type": "integer",
+            "title": "Total Minutes"
+          },
+          "by_person": {
+            "items": {
+              "$ref": "#/components/schemas/PersonTime"
+            },
+            "type": "array",
+            "title": "By Person"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/WorklogRead"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_minutes",
+          "by_person",
+          "entries"
+        ],
+        "title": "IssueTime",
+        "description": "Everything the issue panel shows about time spent on one issue."
+      },
+      "IssueTransfer": {
+        "properties": {
+          "team_id": {
+            "type": "integer",
+            "title": "Team Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id"
+        ],
+        "title": "IssueTransfer",
+        "description": "Where to move an issue (#98)."
+      },
+      "IssueType": {
+        "type": "string",
+        "enum": [
+          "bug",
+          "task",
+          "story"
+        ],
+        "title": "IssueType",
+        "description": "What kind of work an issue is (#89).\n\nA fixed three, deliberately: per-team custom types are how Jira's type\nlist grew until nobody could say what a \"Sub-task (Technical)\" was.\n\nThere is no `epic`. An epic is a Project (#60-#64) -- a grouping of issues\nwith a lead, a target date and progress -- and making it a type as well\nwould give the tracker two competing ways to say \"these belong together\"."
       },
       "IssueUpdate": {
         "properties": {
@@ -7186,6 +9511,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/IssuePriority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueType"
               },
               {
                 "type": "null"
@@ -7244,6 +9579,18 @@
               }
             ],
             "title": "Cycle Id"
+          },
+          "due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
           },
           "label_ids": {
             "anyOf": [
@@ -7574,6 +9921,218 @@
         "title": "OAuthProvider",
         "description": "An identity provider somebody can sign in with.\n\nTwo, and closed on purpose. Each one is a different set of quirks rather\nthan a row of configuration -- see `lib_identity/oauth_providers.py` -- and\na self-hosted instance that configures neither keeps email and password\nwith no external dependency at all. Unrelated to `GitProvider`: that is a\nrepository SoftTrack is told about, this is a way into an account."
       },
+      "OutboundWebhookCreate": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Url"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/WebhookEvent"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "secret": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 16
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secret"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "events"
+        ],
+        "title": "OutboundWebhookCreate"
+      },
+      "OutboundWebhookCreated": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "team_id": {
+            "type": "integer",
+            "title": "Team Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/WebhookEvent"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "is_enabled": {
+            "type": "boolean",
+            "title": "Is Enabled"
+          },
+          "consecutive_failures": {
+            "type": "integer",
+            "title": "Consecutive Failures"
+          },
+          "disabled_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabled Reason"
+          },
+          "secret_hint": {
+            "type": "string",
+            "title": "Secret Hint"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "secret": {
+            "type": "string",
+            "title": "Secret"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "team_id",
+          "url",
+          "events",
+          "is_enabled",
+          "consecutive_failures",
+          "secret_hint",
+          "created_at",
+          "secret"
+        ],
+        "title": "OutboundWebhookCreated",
+        "description": "Returned once, when the webhook is made: the only time the secret is seen."
+      },
+      "OutboundWebhookRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "team_id": {
+            "type": "integer",
+            "title": "Team Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/WebhookEvent"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "is_enabled": {
+            "type": "boolean",
+            "title": "Is Enabled"
+          },
+          "consecutive_failures": {
+            "type": "integer",
+            "title": "Consecutive Failures"
+          },
+          "disabled_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabled Reason"
+          },
+          "secret_hint": {
+            "type": "string",
+            "title": "Secret Hint"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "team_id",
+          "url",
+          "events",
+          "is_enabled",
+          "consecutive_failures",
+          "secret_hint",
+          "created_at"
+        ],
+        "title": "OutboundWebhookRead"
+      },
+      "OutboundWebhookUpdate": {
+        "properties": {
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "events": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/WebhookEvent"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Events"
+          },
+          "is_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Enabled"
+          }
+        },
+        "type": "object",
+        "title": "OutboundWebhookUpdate"
+      },
       "Page_AdminUserRead_": {
         "properties": {
           "items": {
@@ -7864,6 +10423,10 @@
           "priority": {
             "$ref": "#/components/schemas/IssuePriority"
           },
+          "type": {
+            "$ref": "#/components/schemas/IssueType",
+            "default": "task"
+          },
           "raw_status": {
             "anyOf": [
               {
@@ -7994,6 +10557,101 @@
         ],
         "title": "PasswordChange"
       },
+      "PersonTime": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserPublic"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "minutes"
+        ],
+        "title": "PersonTime"
+      },
+      "ProjectBurnup": {
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id"
+          },
+          "project_name": {
+            "type": "string",
+            "title": "Project Name"
+          },
+          "started_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started On"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectBurnupPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "project_name",
+          "points"
+        ],
+        "title": "ProjectBurnup"
+      },
+      "ProjectBurnupPoint": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "scope_issues": {
+            "type": "integer",
+            "title": "Scope Issues"
+          },
+          "completed_issues": {
+            "type": "integer",
+            "title": "Completed Issues"
+          },
+          "scope_points": {
+            "type": "integer",
+            "title": "Scope Points"
+          },
+          "completed_points": {
+            "type": "integer",
+            "title": "Completed Points"
+          },
+          "unestimated_issues": {
+            "type": "integer",
+            "title": "Unestimated Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "scope_issues",
+          "completed_issues",
+          "scope_points",
+          "completed_points",
+          "unestimated_issues"
+        ],
+        "title": "ProjectBurnupPoint",
+        "description": "What one project -- an epic -- held at the end of one day (#64)."
+      },
       "ProjectCreate": {
         "properties": {
           "name": {
@@ -8114,6 +10772,14 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "issue_count": {
+            "type": "integer",
+            "title": "Issue Count"
+          },
+          "completed_issue_count": {
+            "type": "integer",
+            "title": "Completed Issue Count"
           }
         },
         "type": "object",
@@ -8124,7 +10790,9 @@
           "color",
           "state",
           "archived",
-          "created_at"
+          "created_at",
+          "issue_count",
+          "completed_issue_count"
         ],
         "title": "ProjectRead"
       },
@@ -8234,6 +10902,52 @@
         "title": "PullRequestState",
         "description": "Where a pull request is. Only meaningful for `CodeLinkKind.pull_request`.\n\n`merged` and `closed` are separate states rather than one \"not open\",\nbecause the whole point of the distinction is that one of them shipped\nthe work and the other did not."
       },
+      "ReactionEmoji": {
+        "type": "string",
+        "enum": [
+          "thumbs_up",
+          "thumbs_down",
+          "laugh",
+          "hooray",
+          "confused",
+          "heart",
+          "rocket",
+          "eyes"
+        ],
+        "title": "ReactionEmoji",
+        "description": "The reactions a comment can get (#96) -- GitHub's eight, and only those.\n\nA fixed set rather than any emoji: no picker to build, no emoji data to\nship, and a count that means the same thing on every comment. Stored by\nname rather than as the character, so the value is plain ASCII in every\ndatabase and every client, and the glyph is the frontend's business."
+      },
+      "ReactionSummary": {
+        "properties": {
+          "emoji": {
+            "$ref": "#/components/schemas/ReactionEmoji"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "reacted": {
+            "type": "boolean",
+            "title": "Reacted"
+          },
+          "users": {
+            "items": {
+              "$ref": "#/components/schemas/UserPublic"
+            },
+            "type": "array",
+            "title": "Users"
+          }
+        },
+        "type": "object",
+        "required": [
+          "emoji",
+          "count",
+          "reacted",
+          "users"
+        ],
+        "title": "ReactionSummary",
+        "description": "One emoji on one comment, and who gave it (#96).\n\nSummarised rather than one row per reaction: a chip needs the count, the\nnames for its tooltip, and whether it is yours to take back -- never the\nindividual rows."
+      },
       "RepositoryCreate": {
         "properties": {
           "provider": {
@@ -8337,6 +11051,27 @@
         "title": "RepositoryRead",
         "description": "A connected repository, as the settings page receives it.\n\nCarries the secret. There is no point hiding it: the person reading this\npage is a team admin, it has to be pasted into the provider's settings\nform, and a \"shown once\" secret only means the rotate button gets used as\na \"show it again\" button. What it does mean is that this response is\nadmin-only -- see the router."
       },
+      "ResetPassword": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Token"
+          },
+          "new_password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "New Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "ResetPassword",
+        "description": "The token from a reset link, and the password to set with it."
+      },
       "RuleActions": {
         "properties": {
           "set_status_id": {
@@ -8354,6 +11089,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/IssuePriority"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "set_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueType"
               },
               {
                 "type": "null"
@@ -8438,6 +11183,16 @@
               }
             ]
           },
+          "if_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "if_label_id": {
             "anyOf": [
               {
@@ -8499,6 +11254,30 @@
             "default": {
               "unassigned": false
             }
+          },
+          "group_by": {
+            "$ref": "#/components/schemas/IssueGrouping",
+            "default": "status"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueSort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sort_direction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SortDirection"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -8531,6 +11310,29 @@
           "filters": {
             "$ref": "#/components/schemas/ViewFilters"
           },
+          "group_by": {
+            "$ref": "#/components/schemas/IssueGrouping"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueSort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sort_direction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SortDirection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -8550,6 +11352,7 @@
           "owner",
           "is_shared",
           "filters",
+          "group_by",
           "created_at",
           "updated_at"
         ],
@@ -8585,6 +11388,36 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ViewFilters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "group_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueGrouping"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueSort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sort_direction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SortDirection"
               },
               {
                 "type": "null"
@@ -8742,6 +11575,14 @@
         ],
         "title": "SearchHit"
       },
+      "SortDirection": {
+        "type": "string",
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "title": "SortDirection"
+      },
       "StatusCategory": {
         "type": "string",
         "enum": [
@@ -8753,6 +11594,29 @@
         ],
         "title": "StatusCategory",
         "description": "What a status *means*, as opposed to what a team calls it.\n\nFixed on purpose, and the reason per-team statuses are safe to allow at\nall. Everything that has to reason about work -- burndown, velocity, \"is\nthis cycle finished\", \"3 of 5 sub-issues done\", whether a blocker still\nblocks -- asks the category, never the name. A team can add \"Blocked\" or\n\"QA\" without any of that having an opinion about it.\n\nUnconstrained workflow states are how Jira became Jira. These five are the\nline."
+      },
+      "StatusChange": {
+        "properties": {
+          "from_name": {
+            "type": "string",
+            "title": "From Name"
+          },
+          "to_name": {
+            "type": "string",
+            "title": "To Name"
+          },
+          "same_category": {
+            "type": "boolean",
+            "title": "Same Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_name",
+          "to_name",
+          "same_category"
+        ],
+        "title": "StatusChange"
       },
       "StatusCreate": {
         "properties": {
@@ -9039,9 +11903,11 @@
         "type": "string",
         "enum": [
           "admin",
-          "member"
+          "member",
+          "guest"
         ],
-        "title": "TeamRole"
+        "title": "TeamRole",
+        "description": "What someone may do inside one team.\n\nOrdered from most to least power. `guest` (#104) sees everything a member\nsees -- board, list, issues, comments, cycles, reports, search -- and\nchanges nothing: no issues, no comments, no settings. The one thing a guest\ndoes write is their own relationship to the team: watching an issue,\nchoosing their own default view, and leaving."
       },
       "TeamUpdate": {
         "properties": {
@@ -9072,6 +11938,28 @@
         "title": "TeamUpdate",
         "description": "What an admin may change about a team.\n\nNo `key`: identifiers like ENG-42 are already in commit messages, chat\nlogs and browser history, and renaming the prefix would strand every one\nof them. See README."
       },
+      "TimeSpent": {
+        "properties": {
+          "total_minutes": {
+            "type": "integer",
+            "title": "Total Minutes"
+          },
+          "by_person": {
+            "items": {
+              "$ref": "#/components/schemas/PersonTime"
+            },
+            "type": "array",
+            "title": "By Person"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_minutes",
+          "by_person"
+        ],
+        "title": "TimeSpent",
+        "description": "A rollup for a report: how much time, and whose (#102)."
+      },
       "Token": {
         "properties": {
           "access_token": {
@@ -9093,6 +11981,117 @@
           "user"
         ],
         "title": "Token"
+      },
+      "TransferPlan": {
+        "properties": {
+          "from_identifier": {
+            "type": "string",
+            "title": "From Identifier"
+          },
+          "to_identifier": {
+            "type": "string",
+            "title": "To Identifier"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusChange"
+          },
+          "labels_kept": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels Kept"
+          },
+          "labels_dropped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels Dropped"
+          },
+          "cycle_cleared": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle Cleared"
+          },
+          "project_cleared": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Cleared"
+          },
+          "assignee_cleared": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee Cleared"
+          },
+          "parent_detached": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Detached"
+          },
+          "sub_issues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sub Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_identifier",
+          "to_identifier",
+          "status",
+          "labels_kept",
+          "labels_dropped",
+          "sub_issues"
+        ],
+        "title": "TransferPlan",
+        "description": "What moving an issue to another team would change, before it does.\n\nThe confirmation dialog shows this, and `transfer_issue` carries out the\nsame plan -- they are computed by one function, so the summary a person\nagreed to is the change they get."
+      },
+      "TransferResult": {
+        "properties": {
+          "issue": {
+            "$ref": "#/components/schemas/IssueRead"
+          },
+          "sub_issues": {
+            "items": {
+              "$ref": "#/components/schemas/IssueRead"
+            },
+            "type": "array",
+            "title": "Sub Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "issue",
+          "sub_issues"
+        ],
+        "title": "TransferResult"
       },
       "UnreadCount": {
         "properties": {
@@ -9540,6 +12539,26 @@
               }
             ],
             "title": "Cycle Id"
+          },
+          "due": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DueFilter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -9558,6 +12577,100 @@
           "watching"
         ],
         "title": "WatchState"
+      },
+      "WebhookDeliveryRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "event": {
+            "type": "string",
+            "title": "Event"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "next_attempt_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Attempt At"
+          },
+          "response_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Status"
+          },
+          "response_excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Excerpt"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "event",
+          "status",
+          "attempts",
+          "created_at"
+        ],
+        "title": "WebhookDeliveryRead"
+      },
+      "WebhookEvent": {
+        "type": "string",
+        "enum": [
+          "issue.created",
+          "issue.updated",
+          "issue.status_changed",
+          "comment.created",
+          "cycle.started",
+          "cycle.completed",
+          "ping"
+        ],
+        "title": "WebhookEvent",
+        "description": "What an outbound webhook can be sent (#91).\n\nThe same happenings the notification system already observes, named the\nway most senders name theirs: `resource.verb`."
       },
       "WebhookReceipt": {
         "properties": {
@@ -9585,6 +12698,267 @@
         ],
         "title": "WebhookReceipt",
         "description": "What the webhook endpoint answers with.\n\nMore than an empty 200 on purpose. Both providers show the response body\nin their delivery log, and that log is the entire debugging surface for\nwhoever is setting this up -- \"accepted, matched nothing\" is the answer to\nthe question they are about to ask, and it is much cheaper to read there\nthan to work out from an issue page that did not change."
+      },
+      "WorklogCreate": {
+        "properties": {
+          "minutes": {
+            "type": "integer",
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Minutes"
+          },
+          "worked_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worked On"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "minutes"
+        ],
+        "title": "WorklogCreate"
+      },
+      "WorklogRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "issue_id": {
+            "type": "integer",
+            "title": "Issue Id"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserPublic"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          },
+          "worked_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Worked On"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "issue_id",
+          "user",
+          "minutes",
+          "worked_on",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorklogRead"
+      },
+      "WorklogUpdate": {
+        "properties": {
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1440.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          },
+          "worked_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worked On"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "title": "WorklogUpdate"
+      },
+      "ErrorCode": {
+        "description": "Every code the API can return. Grouped by what the client did wrong.",
+        "enum": [
+          "not_authenticated",
+          "bad_credentials",
+          "account_deactivated",
+          "rate_limited",
+          "not_team_member",
+          "not_team_admin",
+          "team_read_only",
+          "not_site_admin",
+          "invite_only",
+          "team_not_found",
+          "issue_not_found",
+          "issues_not_found",
+          "parent_not_found",
+          "project_not_found",
+          "cycle_not_found",
+          "status_not_found",
+          "view_not_found",
+          "rule_not_found",
+          "link_not_found",
+          "attachment_not_found",
+          "comment_not_found",
+          "template_not_found",
+          "worklog_not_found",
+          "notification_not_found",
+          "repository_not_found",
+          "invite_not_found",
+          "user_not_found",
+          "member_not_found",
+          "not_on_this_team",
+          "user_not_on_team",
+          "email_taken",
+          "username_taken",
+          "team_key_taken",
+          "status_name_taken",
+          "template_name_taken",
+          "rule_name_taken",
+          "already_member",
+          "link_exists",
+          "link_contradicts",
+          "repository_already_connected",
+          "oauth_account_taken",
+          "last_team_admin",
+          "last_site_admin",
+          "last_status",
+          "team_has_no_statuses",
+          "cannot_deactivate_self",
+          "cannot_demote_self",
+          "cycle_completed",
+          "cycle_already_active",
+          "cycle_dates_invalid",
+          "link_to_self",
+          "parent_is_self",
+          "parent_other_team",
+          "parent_is_subissue",
+          "issue_has_subissues",
+          "labels_conflict",
+          "status_order_incomplete",
+          "template_order_incomplete",
+          "status_move_to_same",
+          "not_your_worklog",
+          "not_your_comment",
+          "worklog_in_future",
+          "transfer_same_team",
+          "view_other_team",
+          "view_private_default",
+          "rank_neighbour_is_self",
+          "password_required_to_disconnect",
+          "name_required",
+          "body_required",
+          "invalid_colour",
+          "username_invalid",
+          "current_password_incorrect",
+          "current_password_required",
+          "file_empty",
+          "file_too_large",
+          "attachment_name_missing",
+          "attachment_type_not_allowed",
+          "attachment_content_mismatch",
+          "attachment_not_attachable",
+          "attachment_gone",
+          "range_not_satisfiable",
+          "import_not_utf8",
+          "import_invalid",
+          "import_empty",
+          "invite_invalid",
+          "api_token_not_found",
+          "webhook_not_found",
+          "webhook_invalid",
+          "webhook_target_private",
+          "api_token_not_allowed",
+          "invite_wrong_recipient",
+          "reset_link_invalid",
+          "email_not_configured",
+          "oauth_provider_unknown",
+          "oauth_provider_disabled",
+          "oauth_expired",
+          "oauth_connect_failed",
+          "oauth_not_connected"
+        ],
+        "title": "ErrorCode",
+        "type": "string"
+      },
+      "ApiErrorBody": {
+        "description": "The body of every error raised with a code.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          }
+        },
+        "required": [
+          "detail",
+          "code"
+        ],
+        "title": "ApiErrorBody",
+        "type": "object"
       }
     },
     "securitySchemes": {

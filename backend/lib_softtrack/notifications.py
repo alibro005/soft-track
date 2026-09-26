@@ -17,7 +17,6 @@ Two rules the hooks all obey, so no caller has to remember them:
 from datetime import datetime, timezone
 from typing import Iterable, Optional
 
-from fastapi import HTTPException
 from sqlmodel import Session, func, select
 
 from lib_identity.models.identity import UserPublic
@@ -40,6 +39,7 @@ from lib_softtrack.tables import (
     TeamMember,
     User,
 )
+from lib_utils.errors import ErrorCode, api_error
 
 #: How much of a comment the inbox quotes. Long enough to recognise which
 #: comment it was, short enough that a row stays one line on a phone.
@@ -297,6 +297,40 @@ def on_comment_created(
     )
 
 
+def on_comment_edited(
+    session: Session, issue: Issue, comment: Comment, before: str, actor: User
+) -> None:
+    """Tell anyone the edit newly names (#93), and nobody else.
+
+    Only handles that were not in the old body, as for a description: fixing
+    a typo should not re-ping everyone the comment mentions, and watchers
+    heard about the comment when it was posted.
+    """
+    was = mentioned_user_ids(session, issue.team_id, before)
+    _raise(
+        session,
+        recipients=mentioned_user_ids(session, issue.team_id, comment.body)
+        - was
+        - _own(actor),
+        kind=NotificationKind.mentioned,
+        issue=issue,
+        actor=actor,
+        comment=comment,
+    )
+
+
+def delete_for_comment(session: Session, comment_id: int) -> None:
+    """Drop the notifications about a comment being deleted (#93).
+
+    They hold a foreign key to it, and an inbox row quoting words their
+    author took back is the one thing a delete should not leave behind.
+    """
+    for row in session.exec(
+        select(Notification).where(Notification.comment_id == comment_id)
+    ).all():
+        session.delete(row)
+
+
 def delete_for_issue(session: Session, issue_id: int) -> None:
     """Drop the watches and notifications pointing at an issue being deleted.
 
@@ -455,7 +489,11 @@ def set_read(
     # 404 rather than 403 for someone else's notification: the caller has no
     # business learning that the id exists.
     if row is None or row.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise api_error(
+            status_code=404,
+            code=ErrorCode.notification_not_found,
+            detail="Notification not found",
+        )
 
     row.read_at = datetime.now(timezone.utc) if read else None
     session.add(row)

@@ -12,12 +12,12 @@ Enforcing that pair makes cycles impossible without a graph walk: a cycle of
 any length needs every issue in it to have both a parent and a child.
 """
 
-from fastapi import HTTPException
 from sqlalchemy import case, func
 from sqlmodel import Session, select
 
 from lib_softtrack.statuses import in_category
 from lib_softtrack.tables import Issue, StatusCategory
+from lib_utils.errors import ErrorCode, api_error
 
 #: A cancelled child is neither done nor outstanding, so it is left out of the
 #: count entirely. "3 of 5 done" should not become unreachable because two of
@@ -32,23 +32,31 @@ _EXCLUDED_FROM_PROGRESS = StatusCategory.cancelled
 def validate_parent(session: Session, issue: Issue, parent_id: int) -> Issue:
     """Check that `issue` may be nested under `parent_id`, and return it."""
     if parent_id == issue.id:
-        raise HTTPException(
-            status_code=400, detail="An issue cannot be its own parent."
+        raise api_error(
+            status_code=400,
+            code=ErrorCode.parent_is_self,
+            detail="An issue cannot be its own parent.",
         )
 
     parent = session.get(Issue, parent_id)
     if parent is None:
-        raise HTTPException(status_code=404, detail="Parent issue not found")
+        raise api_error(
+            status_code=404,
+            code=ErrorCode.parent_not_found,
+            detail="Parent issue not found",
+        )
 
     if parent.team_id != issue.team_id:
-        raise HTTPException(
+        raise api_error(
             status_code=400,
+            code=ErrorCode.parent_other_team,
             detail="A sub-issue must be on the same team as its parent.",
         )
 
     if parent.parent_id is not None:
-        raise HTTPException(
+        raise api_error(
             status_code=400,
+            code=ErrorCode.parent_is_subissue,
             detail=(
                 "That issue is already a sub-issue. Sub-issues are one level "
                 "deep, so it cannot also be a parent."
@@ -56,8 +64,9 @@ def validate_parent(session: Session, issue: Issue, parent_id: int) -> Issue:
         )
 
     if issue.id is not None and _has_children(session, issue.id):
-        raise HTTPException(
+        raise api_error(
             status_code=400,
+            code=ErrorCode.issue_has_subissues,
             detail=(
                 "This issue has sub-issues of its own, so it cannot become a "
                 "sub-issue. Move or detach its children first."
@@ -90,21 +99,29 @@ def child_progress(
 
     Cancelled children are excluded from both numbers.
     """
-    if not parent_ids:
+    return progress_by(session, Issue.parent_id, parent_ids)
+
+
+def progress_by(session: Session, column, ids: list[int]) -> dict[int, tuple[int, int]]:
+    """`{id: (done, total)}` for issues grouped on `column`, in one query.
+
+    The one definition of progress. A parent's sub-issues and a project's
+    issues both count through here, so "what does a cancelled issue count
+    as" has one answer -- the one #13 settled -- rather than one per feature.
+    An id with no issues is simply absent; callers read that as 0 of 0.
+    """
+    if not ids:
         return {}
 
     done_when = case((in_category(_DONE), 1), else_=0)
 
     rows = session.exec(
-        select(Issue.parent_id, func.count(), func.coalesce(func.sum(done_when), 0))
-        .where(
-            Issue.parent_id.in_(parent_ids),
-            ~in_category(_EXCLUDED_FROM_PROGRESS),
-        )
-        .group_by(Issue.parent_id)
+        select(column, func.count(), func.coalesce(func.sum(done_when), 0))
+        .where(column.in_(ids), ~in_category(_EXCLUDED_FROM_PROGRESS))
+        .group_by(column)
     ).all()
 
-    return {parent_id: (int(done), int(total)) for parent_id, total, done in rows}
+    return {key: (int(done), int(total)) for key, total, done in rows}
 
 
 def _has_children(session: Session, issue_id: int) -> bool:

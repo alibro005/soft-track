@@ -1,11 +1,16 @@
-import { useDraggable } from '@dnd-kit/core'
+import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useNavigate } from 'react-router-dom'
 
 import type { IssueRead } from '@/api/generated/models'
 import { selectionGesture } from '@/board/selection'
+import { useTranslation } from '@/i18n'
+import { DueBadge } from '@/issues/DueBadge'
 import { EstimateBadge } from '@/issues/EstimateBadge'
+import { isResolved } from '@/issues/issueMeta'
+import { IssueTypeIcon } from '@/issues/IssueTypeIcon'
 import { PriorityIcon } from '@/issues/PriorityIcon'
+import { useCanWrite } from '@/team/useCanWrite'
 import { useTeamContext } from '@/team/useTeamContext'
 import { Avatar } from '@/ui/Avatar'
 
@@ -13,16 +18,33 @@ export function IssueCard({
   issue,
   selected = false,
   onSelect,
+  showStatus = false,
+  showProject = true,
 }: {
   issue: IssueRead
   selected?: boolean
   /** A shift- or ⌘/Ctrl-click. Without it those clicks open the issue like any other. */
   onSelect?: (issueId: number, gesture: 'range' | 'toggle') => void
+  /** For a board grouped by project, where the column no longer says it. */
+  showStatus?: boolean
+  /** Off on a board grouped by project, where the column already says it. */
+  showProject?: boolean
 }) {
+  const { t } = useTranslation('issues')
   const navigate = useNavigate()
-  const { team } = useTeamContext()
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { team, projects } = useTeamContext()
+  const project = showProject
+    ? projects.find((candidate) => candidate.id === issue.project_id)
+    : undefined
+  // Sortable rather than only draggable (#88): the other cards in its column
+  // make room for it while it is carried, and where it lands is kept.
+  // A guest's cards stay put (#104). The drag handlers and their "sortable"
+  // announcement are left off too, rather than offering a move that is
+  // refused on drop.
+  const canWrite = useCanWrite()
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: issue.id,
+    disabled: !canWrite,
   })
 
   // While dragging, the card follows the pointer with no easing and lifts
@@ -30,7 +52,9 @@ export function IssueCard({
   const style = transform
     ? {
         transform: `${CSS.Translate.toString(transform)} ${isDragging ? 'rotate(1.5deg) scale(1.03)' : ''}`,
-        transition: 'none',
+        // The carried card follows the pointer with no easing; the others
+        // slide out of its way with the sortable's own transition.
+        transition: isDragging ? 'none' : transition,
         opacity: isDragging ? 0.92 : 1,
         zIndex: isDragging ? 20 : undefined,
         boxShadow: isDragging
@@ -45,8 +69,7 @@ export function IssueCard({
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
+      {...(canWrite ? { ...listeners, ...attributes } : {})}
       role="button"
       tabIndex={0}
       data-card={issue.id}
@@ -64,28 +87,49 @@ export function IssueCard({
         if (e.shiftKey) e.preventDefault()
       }}
       onKeyDown={(e) => {
-        // The card is a div, so Enter and Space have to be wired by hand to
-        // match what a real button would do.
-        if (e.key === 'Enter' || e.key === ' ') {
+        // Enter opens the issue, as it would on a real button. Everything
+        // else goes to dnd-kit, which picks the card up on Space (#80) --
+        // this handler replaces the one spread in from `listeners`, so it
+        // has to be handed on explicitly or the keyboard sensor never hears
+        // a thing. Enter while a card is held is the drop, not an open.
+        if (e.key === 'Enter') {
+          if (isDragging) return
           e.preventDefault()
           open()
+          return
         }
+        listeners?.onKeyDown?.(e)
       }}
       className={`glass-card relative w-full cursor-grab touch-none rounded-card p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/70 active:cursor-grabbing ${
         selected ? 'bg-brand-500/10 ring-2 ring-brand-500/70' : ''
       }`}
     >
-      {selected && <span className="sr-only">Selected. </span>}
+      {selected && <span className="sr-only">{t('card.selected')}</span>}
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="identifier text-[11px] font-medium text-neutral-400">
-          {issue.identifier}
+        <span className="flex min-w-0 items-center gap-1.5">
+          {showStatus && (
+            <span
+              className="dot"
+              style={{ ['--dot' as string]: issue.status.color }}
+              title={issue.status.name}
+            >
+              <span className="sr-only">{issue.status.name}</span>
+            </span>
+          )}
+          <IssueTypeIcon type={issue.type} size={13} />
+          <span className="identifier text-[11px] font-medium text-neutral-400">
+            {issue.identifier}
+          </span>
         </span>
         <div className="flex items-center gap-1.5">
           {issue.blocked_by_count > 0 && <BlockedMarker count={issue.blocked_by_count} />}
           {issue.child_count > 0 && (
             <span
               className="identifier text-[10px] text-neutral-400"
-              title={`${issue.completed_child_count} of ${issue.child_count} sub-issues done`}
+              title={t('card.subIssuesDone', {
+                done: issue.completed_child_count,
+                count: issue.child_count,
+              })}
             >
               {issue.completed_child_count}/{issue.child_count}
             </span>
@@ -101,6 +145,7 @@ export function IssueCard({
 
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap gap-1">
+          {project && <ProjectBadge name={project.name} color={project.color} />}
           {issue.labels?.map((label) => (
             <span
               key={label.id}
@@ -111,16 +156,44 @@ export function IssueCard({
             </span>
           ))}
         </div>
-        {issue.assignee ? (
-          <Avatar user={issue.assignee} size={22} />
-        ) : (
-          <span
-            className="h-[22px] w-[22px] shrink-0 rounded-full border border-dashed border-neutral-900/20"
-            title="Unassigned"
-          />
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          {issue.due_date && (
+            <DueBadge dueDate={issue.due_date} resolved={isResolved(issue.status)} />
+          )}
+          {issue.assignee ? (
+            <Avatar user={issue.assignee} size={22} />
+          ) : (
+            <span
+              className="h-[22px] w-[22px] shrink-0 rounded-full border border-dashed border-neutral-900/20"
+              title={t('card.unassigned')}
+            />
+          )}
+        </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * The project an issue is in, coloured from the project (#63).
+ *
+ * A chip like a label's, with a filled dot in front, so the one grouping that
+ * spans cycles is not mistaken for one more label.
+ */
+export function ProjectBadge({ name, color }: { name: string; color: string }) {
+  const { t } = useTranslation('issues')
+  return (
+    <span
+      className="chip max-w-40"
+      style={{ ['--chip' as string]: color }}
+      title={t('card.projectTitle', { name })}
+    >
+      <span className="dot" style={{ ['--dot' as string]: color }} aria-hidden="true" />
+      <span className="truncate" aria-hidden="true">
+        {name}
+      </span>
+      <span className="sr-only">{t('card.projectSpoken', { name })}</span>
+    </span>
   )
 }
 
@@ -132,9 +205,10 @@ export function IssueCard({
  * decoration does not do that job.
  */
 function BlockedMarker({ count }: { count: number }) {
+  const { t } = useTranslation('issues')
   return (
     <span
-      title={`Blocked by ${count} unresolved ${count === 1 ? 'issue' : 'issues'}`}
+      title={t('card.blockedBy', { count })}
       className="chip"
       style={{ ['--chip' as string]: 'var(--color-accent-amber)' }}
     >
@@ -143,7 +217,7 @@ function BlockedMarker({ count }: { count: number }) {
         <path d="M4 12 L12 4" stroke="currentColor" strokeWidth="1.6" />
       </svg>
       {count > 1 && count}
-      <span className="sr-only">Blocked</span>
+      <span className="sr-only">{t('card.blocked')}</span>
     </span>
   )
 }

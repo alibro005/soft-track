@@ -13,9 +13,11 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Iterable, Optional
 
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from lib_softtrack.cycles import get_cycle_or_404
+from lib_softtrack.models.worklogs import TimeSpent
 from lib_softtrack.models.reports import (
     Burndown,
     BurndownPoint,
@@ -23,10 +25,13 @@ from lib_softtrack.models.reports import (
     CreatedVsResolved,
     CumulativeFlow,
     FlowPoint,
+    ProjectBurnup,
+    ProjectBurnupPoint,
     ScopeChange,
     Velocity,
     VelocityCycle,
 )
+from lib_softtrack.projects import get_project_or_404
 from lib_softtrack.statuses import in_category
 from lib_softtrack.tables import (
     Cycle,
@@ -36,6 +41,7 @@ from lib_softtrack.tables import (
     IssueEventField,
     StatusCategory,
     User,
+    Worklog,
 )
 from lib_softtrack.teams import get_team_or_404, require_team_member
 
@@ -222,6 +228,102 @@ def burndown(session: Session, current_user: User, cycle_id: int) -> Burndown:
     )
 
 
+# --- project burnup -----------------------------------------------------
+
+
+def project_burnup(
+    session: Session, current_user: User, project_id: int
+) -> ProjectBurnup:
+    """Scope against completed work, per day, for one project (#64).
+
+    A burnup rather than a burndown because an epic's scope is expected to
+    move: the gap between the two lines is what is left, and a rising top line
+    is scope added after work started -- the thing that explains most missed
+    dates, and the thing a burndown hides.
+
+    Replayed from `issueevent` like every other report. Issues count while
+    their project event says they were in this project, so one moved out
+    mid-way stops counting from that day. The chart starts on the first day
+    history mentions the project and runs to today.
+    """
+    project = get_project_or_404(session, project_id)
+    require_team_member(project.team_id, current_user, session)
+    key = str(project_id)
+
+    mentions = session.exec(
+        select(IssueEvent).where(
+            IssueEvent.field == IssueEventField.project,
+            or_(IssueEvent.new_value == key, IssueEvent.old_value == key),
+        )
+    ).all()
+    if not mentions:
+        return ProjectBurnup(
+            project_id=project.id, project_name=project.name, points=[]
+        )
+
+    ever_in = {event.issue_id for event in mentions}
+    events = session.exec(
+        select(IssueEvent)
+        .where(IssueEvent.issue_id.in_(ever_in))
+        .order_by(IssueEvent.created_at)
+    ).all()
+
+    def of(field: IssueEventField) -> _Timeline:
+        return _Timeline(event for event in events if event.field is field)
+
+    status_at, project_at, estimate_at = (
+        of(IssueEventField.status),
+        of(IssueEventField.project),
+        of(IssueEventField.estimate),
+    )
+
+    start = min(_as_utc(event.created_at) for event in mentions).date()
+    # Never chart the future, for the reason the burndown gives.
+    today = datetime.now(timezone.utc).date()
+
+    points: list[ProjectBurnupPoint] = []
+    for day in _days_between(start, max(today, start)):
+        moment = _end_of(day)
+        scope_issues = completed_issues = scope_points = completed_points = 0
+        unestimated = 0
+
+        for issue_id in ever_in:
+            if project_at.value_at(issue_id, moment) != key:
+                continue
+            status = status_at.value_at(issue_id, moment)
+            if status == StatusCategory.cancelled.value:
+                continue
+            raw_estimate = estimate_at.value_at(issue_id, moment)
+            estimate = int(raw_estimate) if raw_estimate else None
+
+            scope_issues += 1
+            if estimate is None:
+                unestimated += 1
+            else:
+                scope_points += estimate
+            if status == DELIVERED.value:
+                completed_issues += 1
+                completed_points += estimate or 0
+
+        points.append(
+            ProjectBurnupPoint(
+                day=day,
+                scope_issues=scope_issues,
+                completed_issues=completed_issues,
+                scope_points=scope_points,
+                completed_points=completed_points,
+                unestimated_issues=unestimated,
+            )
+        )
+
+    return ProjectBurnup(
+        project_id=project.id,
+        project_name=project.name,
+        started_on=start,
+        points=points,
+    )
+
+
 # --- velocity -----------------------------------------------------------
 
 
@@ -396,3 +498,52 @@ def created_vs_resolved(
         total_created=sum(created_on.values()),
         total_resolved=sum(resolved_on.values()),
     )
+
+
+# --- time spent (#102) ---------------------------------------------------
+
+
+def cycle_time_spent(session: Session, current_user: User, cycle_id: int) -> TimeSpent:
+    """Time logged during the cycle on the cycle's work, by person.
+
+    "During" is the cycle's dates and "the cycle's work" is any issue that was
+    ever in it -- so time spent before an issue was carried over to the next
+    cycle stays with this one, and time spent on it afterwards goes with it.
+    Taking the issues currently in the cycle instead would move a finished
+    sprint's hours every time somebody tidied the backlog.
+    """
+    from lib_softtrack.worklogs import rollup
+
+    cycle = get_cycle_or_404(session, cycle_id)
+    require_team_member(cycle.team_id, current_user, session)
+    issue_ids = _ever_in_cycle(session, cycle_id)
+    if not issue_ids:
+        return TimeSpent(total_minutes=0, by_person=[])
+    rows = session.exec(
+        select(Worklog, User)
+        .join(User, User.id == Worklog.user_id)
+        .where(
+            Worklog.issue_id.in_(issue_ids),
+            Worklog.worked_on >= cycle.starts_at.date(),
+            Worklog.worked_on <= cycle.ends_at.date(),
+        )
+    ).all()
+    return rollup(rows)
+
+
+def team_time_spent(
+    session: Session, current_user: User, team_id: int, days: int = 30
+) -> TimeSpent:
+    """Time logged on the team's issues over the last `days` days, by person."""
+    from lib_softtrack.worklogs import rollup
+
+    get_team_or_404(team_id, session)
+    require_team_member(team_id, current_user, session)
+    since = date.today() - timedelta(days=days - 1)
+    rows = session.exec(
+        select(Worklog, User)
+        .join(User, User.id == Worklog.user_id)
+        .join(Issue, Issue.id == Worklog.issue_id)
+        .where(Issue.team_id == team_id, Worklog.worked_on >= since)
+    ).all()
+    return rollup(rows)
