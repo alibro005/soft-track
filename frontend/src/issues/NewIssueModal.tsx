@@ -249,8 +249,12 @@ export function NewIssueModal({
 
             {showSuggestions && (
               <div className="sr-only" aria-live="polite">
-                {suggestions.length} similar issue
-                {suggestions.length === 1 ? '' : 's'} found.
+                {t(
+                  suggestions.length === 1
+                    ? 'issues:newIssue.similarIssue_one'
+                    : 'issues:newIssue.similarIssue_other',
+                  { count: suggestions.length },
+                )}
               </div>
             )}
 
@@ -258,7 +262,7 @@ export function NewIssueModal({
               <div className="glass mt-2 rounded-panel">
                 <div className="hairline flex items-center justify-between border-b px-3 py-1.5">
                   <span className="text-[11px] font-medium text-neutral-500">
-                    Possibly similar
+                    {t('issues:newIssue.possiblySimilar')}
                   </span>
                   <button
                     type="button"
@@ -267,7 +271,7 @@ export function NewIssueModal({
                       setSelectedSuggestionIndex(-1)
                     }}
                     className="btn btn-ghost btn-icon btn-xs text-neutral-400"
-                    aria-label="Dismiss similar issues"
+                    aria-label={t('issues:newIssue.dismissSimilar')}
                   >
                     <Icon name="close" size={12} />
                   </button>
@@ -275,7 +279,7 @@ export function NewIssueModal({
                 <ul
                   id="similar-issues-list"
                   role="listbox"
-                  aria-label="Similar issues"
+                  aria-label={t('issues:newIssue.similarIssues')}
                   className="divide-y divide-neutral-900/8"
                 >
                   {suggestions.map((hit, index) => (

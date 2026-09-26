@@ -20,6 +20,11 @@ export const newIssue = {
   noProject: 'No project',
   assignee: 'Assignee',
   unassigned: 'Unassigned',
+  similarIssue_one: '{{count}} similar issue found.',
+  similarIssue_other: '{{count}} similar issues found.',
+  possiblySimilar: 'Possibly similar',
+  dismissSimilar: 'Dismiss similar issues',
+  similarIssues: 'Similar issues',
   create: 'Create issue',
   creating: 'Creating…',
   errors: {
