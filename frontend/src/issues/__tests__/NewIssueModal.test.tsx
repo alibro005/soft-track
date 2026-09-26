@@ -11,10 +11,10 @@
  * the top layer from the window. The harness mirrors that wiring.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ProjectRead, StatusRead, TeamMemberRead } from '@/api/generated/models'
@@ -34,12 +34,19 @@ vi.mock('@/api/generated/endpoints/issues/issues', () => ({
   useCreateIssueTeamsTeamIdIssuesPost: () => mutation,
 }))
 
-// The team's description templates (#97). Most tests have none, which is
-// also what hides the picker.
 const templates = vi.hoisted(() => ({ data: [] as unknown[] }))
+
 vi.mock('@/api/generated/endpoints/templates/templates', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/api/generated/endpoints/templates/templates')>()),
   useListTemplatesTeamsTeamIdIssueTemplatesGet: () => templates,
+}))
+
+const { searchHook } = vi.hoisted(() => ({
+  searchHook: vi.fn(),
+}))
+
+vi.mock('@/api/generated/endpoints/search/search', () => ({
+  useSearchSearchGet: searchHook,
 }))
 
 // Spread the real module: it also exports `Markdown`, and replacing the whole
@@ -109,6 +116,19 @@ const TEAM: TeamContextValue = {
   statuses: [status(1, 'Todo'), status(2, 'In Progress')],
 }
 
+const SUGGESTION = {
+  id: 42,
+  team_key: 'ENG',
+  number: 123,
+  identifier: 'ENG-123',
+  title: 'Login button broken',
+  status: {
+    id: 1,
+    name: 'Todo',
+    color: '#888',
+  },
+}
+
 function Harness({ onClose, onShortcut }: { onClose: () => void; onShortcut: () => void }) {
   const [open, setOpen] = useState(true)
   const close = () => {
@@ -127,6 +147,12 @@ function Harness({ onClose, onShortcut }: { onClose: () => void; onShortcut: () 
   return open ? <NewIssueModal onClose={close} issuePanelOpen={false} /> : null
 }
 
+function LocationProbe() {
+  const location = useLocation()
+
+  return <output data-testid="location">{location.pathname}</output>
+}
+
 function renderModal() {
   const onClose = vi.fn()
   const onShortcut = vi.fn()
@@ -135,6 +161,7 @@ function renderModal() {
       <QueryClientProvider client={new QueryClient()}>
         <TeamProvider value={TEAM}>
           <Harness onClose={onClose} onShortcut={onShortcut} />
+          <LocationProbe />
         </TeamProvider>
       </QueryClientProvider>
     </MemoryRouter>,
@@ -149,6 +176,13 @@ beforeEach(() => {
   mutateAsync.mockReset()
   mutation.isPending = false
   templates.data = []
+
+  searchHook.mockReset()
+  searchHook.mockReturnValue({
+    data: { items: [] },
+    isError: false,
+    isFetching: false,
+  })
 })
 
 // The suite runs without globals, so Testing Library cannot register this itself.
@@ -349,6 +383,107 @@ describe('NewIssueModal', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(mutateAsync).not.toHaveBeenCalled()
   })
+
+  it('shows similar issues after the search debounce', async () => {
+    searchHook.mockReturnValue({
+      data: { items: [SUGGESTION] },
+      isError: false,
+      isFetching: false,
+    })
+
+    const { user } = renderModal()
+
+    await user.type(
+      screen.getByRole('combobox', { name: 'Issue title' }),
+      'login button broken',
+    )
+
+    expect(await screen.findByText('Login button broken')).toBeTruthy()
+  })
+
+  it('dismisses similar issue suggestions', async () => {
+    searchHook.mockReturnValue({
+      data: { items: [SUGGESTION] },
+      isError: false,
+      isFetching: false,
+    })
+
+    const { user } = renderModal()
+
+    await user.type(
+      screen.getByRole('combobox', { name: 'Issue title' }),
+      'login button broken',
+    )
+
+    expect(await screen.findByText('Login button broken')).toBeTruthy()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Dismiss similar issues' }),
+    )
+
+    expect(screen.queryByText('Login button broken')).toBeNull()
+  })
+
+  it('opens the highlighted issue with ArrowDown and Enter', async () => {
+    searchHook.mockReturnValue({
+      data: { items: [SUGGESTION] },
+      isError: false,
+      isFetching: false,
+    })
+
+    const { user } = renderModal()
+
+    const title = screen.getByRole('combobox', { name: 'Issue title' })
+
+    await user.type(title, 'login button broken')
+    await screen.findByText('Login button broken')
+
+    await user.keyboard('{ArrowDown}')
+    await user.keyboard('{Enter}')
+
+    expect(screen.getByTestId('location').textContent).toBe('/ENG/issue/123')
+  })
+
+  it('opens the issue when a suggestion is clicked', async () => {
+    searchHook.mockReturnValue({
+      data: { items: [SUGGESTION] },
+      isError: false,
+      isFetching: false,
+    })
+
+    const { user } = renderModal()
+
+    await user.type(
+      screen.getByRole('combobox', { name: 'Issue title' }),
+      'login button broken',
+    )
+
+    await user.click(await screen.findByText('Login button broken'))
+
+    expect(screen.getByTestId('location').textContent).toBe('/ENG/issue/123')
+  })
+
+  it('does not open a suggestion when Enter is pressed during IME composition', async () => {
+    searchHook.mockReturnValue({
+      data: { items: [SUGGESTION] },
+      isError: false,
+      isFetching: false,
+    })
+
+    const { user } = renderModal()
+
+    const title = screen.getByRole('combobox', { name: 'Issue title' })
+
+    await user.type(title, 'login button broken')
+    await screen.findByText('Login button broken')
+
+    fireEvent.keyDown(title, {
+      key: 'Enter',
+      isComposing: true,
+    })
+
+    expect(screen.getByTestId('location').textContent).toBe('/')
+  })
 })
 
 describe('description templates (#97)', () => {
@@ -372,7 +507,7 @@ describe('description templates (#97)', () => {
     expect(description.value).toBe('## Steps\n\n1. ')
 
     await user.type(description, 'open settings')
-    await user.type(screen.getByRole('textbox', { name: 'Issue title' }), 'Crash')
+    await user.type(screen.getByRole('combobox', { name: 'Issue title' }), 'Crash')
     await user.click(screen.getByRole('button', { name: 'Create issue' }))
     expect(mutateAsync.mock.calls[0][0].data.description).toBe('## Steps\n\n1. open settings')
   })

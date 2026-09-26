@@ -93,16 +93,16 @@ export function SearchResults({
                     </p>
                   )}
 
-                <p className="mt-1 pl-[1.4rem] text-[11px] text-neutral-400">
-                  {/* Saying where the match was stops a result whose title has
-                      nothing to do with the query looking like a mistake. */}
-                  {t(MATCHED_IN_KEY[hit.matched_in] ?? 'matchedIn.other', {
-                    place: hit.matched_in,
-                    when: formatRelative(parseServerDate(hit.updated_at)),
-                  })}
-                </p>
-              </button>
-            </li>
+                  <p className="mt-1 pl-[1.4rem] text-[11px] text-neutral-400">
+                    {/* Saying where the match was stops a result whose title has
+                        nothing to do with the query looking like a mistake. */}
+                    {t(MATCHED_IN_KEY[hit.matched_in] ?? 'matchedIn.other', {
+                      place: hit.matched_in,
+                      when: formatRelative(parseServerDate(hit.updated_at)),
+                    })}
+                  </p>
+                </SearchHitRow>
+             </li>
           )
         })}
       </ul>

@@ -1,16 +1,16 @@
 export const MIN_WORDS_TO_SUGGEST = 3
 export const MAX_SUGGESTIONS = 3
+const wordSegmenter =
+  typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter(undefined, { granularity: 'word' })
+    : null
 
 function getWords(value: string): string[] {
   const trimmed = value.trim();
   if (!trimmed) return [];
 
-  if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
-    const segmenter = new Intl.Segmenter(undefined, {
-      granularity: 'word',
-    });
-
-    return Array.from(segmenter.segment(trimmed))
+  if (wordSegmenter) {
+    return Array.from(wordSegmenter.segment(trimmed))
       .filter(({ isWordLike }) => isWordLike)
       .map(({ segment }) => segment);
   }
@@ -30,12 +30,28 @@ export function shouldShowSuggestions(
   return !dismissed && wordCount(title) >= MIN_WORDS_TO_SUGGEST;
 }
 
-/** Search ANDs every term server-side, so a longer title matches less, not
- *  more. Freezing the query at the trigger width keeps later title words from
- *  suppressing matches. */
+/** Returns the original title text up to the end of the Nth word segment,
+ *  preserving CJK characters, punctuation, and original spacing. */
 export function getSearchPhrase(
   title: string,
   maxWords: number = MIN_WORDS_TO_SUGGEST,
 ): string {
-  return getWords(title).slice(0, maxWords).join(' ')
+  const trimmed = title.trim()
+
+  if (!trimmed) return ''
+
+  if (wordSegmenter) {
+    const words = Array.from(wordSegmenter.segment(trimmed)).filter(
+      ({ isWordLike }) => isWordLike,
+    )
+
+      if (words.length <= maxWords) return trimmed
+
+      const lastWord = words[maxWords - 1]
+      const end = lastWord.index + lastWord.segment.length
+
+      return trimmed.slice(0, end)
+  }
+
+  return trimmed.split(/\s+/).slice(0, maxWords).join(' ')
 }

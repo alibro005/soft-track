@@ -78,14 +78,18 @@ export function NewIssueModal({
   const debouncedTitle = useDebounced(title, SEARCH_DEBOUNCE_MS)
   const shouldSuggest = shouldShowSuggestions(debouncedTitle, suggestionsDismissed)
 
-  const { data: searchData, isError: searchFailed } = useSearchSearchGet(
+  const {
+    data: searchData,
+    isError: searchFailed,
+    isFetching: searchFetching,
+  } = useSearchSearchGet(
     { q: getSearchPhrase(debouncedTitle), team_id: team.id, limit: MAX_SUGGESTIONS },
     { query: { enabled: shouldSuggest, retry: false, placeholderData: keepPreviousData } },
   )
 
   const suggestions = searchFailed ? [] : (searchData?.items ?? [])
 
-  const showSuggestions = shouldSuggest && suggestions.length > 0
+  const showSuggestions = shouldSuggest && !searchFetching && suggestions.length > 0
   const applyTemplate = (id: string) => {
     const template = templates.find((candidate) => String(candidate.id) === id)
     if (!template) {

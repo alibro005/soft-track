@@ -220,13 +220,7 @@ export default function BoardPage() {
 
   useGlobalShortcuts({
     togglePalette,
-    closeTop: () => {
-      if (issueNumber) {
-        navigate(`/${teamKey}`)
-        return
-      }
-      overlays.closeTop()
-    },
+    closeTop: overlays.closeTop,
     openNewIssue,
     openShortcuts,
     suppressed: overlays.isOpen('palette') || overlays.isOpen('shortcuts'),
@@ -285,7 +279,7 @@ export default function BoardPage() {
     return <Navigate to="/new-team" replace />
   }
 
-  const openIssue = issueNumber ? issues.find((i) => String(i.number) === issueNumber) : undefined
+  const openIssue = loadedIssue ?? (issueNumber ? fetchedIssue.data : undefined)
   const issueIdFromState = location.state?.issueId as number | undefined
   const openIssueId = openIssue?.id ?? issueIdFromState
   const selectedCycle = teamData.cycles.find((cycle) => cycle.id === filters.cycleId) ?? null

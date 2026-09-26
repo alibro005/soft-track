@@ -20,11 +20,11 @@ export function SearchHitRow({
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-        selected ? "bg-brand-500/10" : "hover:bg-neutral-900/4"
+      className={`w-full px-3 py-2.5 text-left transition-colors ${
+        selected ? 'bg-brand-500/10' : 'hover:bg-neutral-900/4'
       } focus:outline-none focus-visible:bg-brand-500/10`}
     >
-      <div className="flex items-center gap-3 px-3 py-2.5">
+      <div className="flex items-center gap-3">
         {leading}
 
         <span className="identifier shrink-0 text-xs font-medium text-neutral-400">

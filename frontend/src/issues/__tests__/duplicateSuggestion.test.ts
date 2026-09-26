@@ -4,57 +4,61 @@ import {
   getSearchPhrase,
   shouldShowSuggestions,
   wordCount,
-} from '../duplicateSuggestion';
+} from '../duplicateSuggestion'
 
-describe("wordCount", () => {
-  it("counts space-delimited words", () => {
-    expect(wordCount("login button broken")).toBe(3);
-  });
+describe('wordCount', () => {
+  it('counts space-delimited words', () => {
+    expect(wordCount('login button broken')).toBe(3)
+  })
 
-  it("returns 0 for empty input", () => {
-    expect(wordCount("   ")).toBe(0);
-  });
+  it('returns 0 for empty input', () => {
+    expect(wordCount('   ')).toBe(0)
+  })
 
-  it("counts words in scripts with no spacing", () => {
-    expect(wordCount("登录按钮在移动端无法点击")).toBeGreaterThan(1);
-  });
+  it('counts words in scripts with no spacing', () => {
+    expect(wordCount('登录按钮在移动端无法点击')).toBeGreaterThan(1)
+  })
+})
 
-  it("does not send the entire CJK title as the search phrase", () => {
-    const title = "登录按钮在移动端无法点击";
-    const phrase = getSearchPhrase(title, MIN_WORDS_TO_SUGGEST);
+describe('shouldShowSuggestions', () => {
+  it('is false below the word threshold', () => {
+    expect(shouldShowSuggestions('login broken', false)).toBe(false)
+  })
 
-    expect(phrase).not.toBe(title);
-    expect(phrase.length).toBeLessThan(title.length);
-  });
-});
+  it('is true at the word threshold', () => {
+    expect(shouldShowSuggestions('login button broken', false)).toBe(true)
+  })
 
-describe("shouldShowSuggestions", () => {
-  it("is false below the word threshold", () => {
-    expect(shouldShowSuggestions("login broken", false)).toBe(false);
-  });
+  it('stays false once dismissed, even above threshold', () => {
+    expect(shouldShowSuggestions('login button broken', true)).toBe(false)
+  })
+})
 
-  it("is true at the word threshold", () => {
-    expect(shouldShowSuggestions("login button broken", false)).toBe(true);
-  });
-
-  it("stays false once dismissed, even above threshold", () => {
-    expect(shouldShowSuggestions("login button broken", true)).toBe(false);
-  });
-});
-
-describe("getSearchPhrase", () => {
-  it("freezes at the given word count", () => {
+describe('getSearchPhrase', () => {
+  it('freezes at the given word count', () => {
     expect(
       getSearchPhrase(
-        "login button does not work on mobile",
+        'login button does not work on mobile',
         MIN_WORDS_TO_SUGGEST,
       ),
-    ).toBe("login button does");
-  });
+    ).toBe('login button does')
+  })
 
-  it("does not pad short titles", () => {
-    expect(getSearchPhrase("login broken", MIN_WORDS_TO_SUGGEST)).toBe(
-      "login broken",
-    );
-  });
-});
+  it('does not pad short titles', () => {
+    expect(getSearchPhrase('login broken', MIN_WORDS_TO_SUGGEST)).toBe(
+      'login broken',
+    )
+  })
+
+  it('preserves CJK characters without inserting spaces', () => {
+    const title = '登录按钮在移动端无法点击'
+
+    expect(getSearchPhrase(title, MIN_WORDS_TO_SUGGEST)).toBe('登录按钮在')
+  })
+
+  it('preserves punctuation and original spacing', () => {
+    expect(
+      getSearchPhrase('Login: button broken on mobile', MIN_WORDS_TO_SUGGEST),
+    ).toBe('Login: button broken')
+  })
+})
