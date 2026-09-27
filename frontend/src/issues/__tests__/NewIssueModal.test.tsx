@@ -11,7 +11,7 @@
  * the top layer from the window. The harness mirrors that wiring.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,15 +22,41 @@ import { useGlobalShortcuts } from '@/keyboard/useGlobalShortcuts'
 import { TeamProvider } from '@/team/TeamContext'
 import type { TeamContextValue } from '@/team/useTeamContext'
 
-// One object the hook hands back on every render, so a test can set
-// `mutation.isPending` before rendering and see what the form does with it.
-const { mutateAsync, mutation } = vi.hoisted(() => {
+// Shared mock state for the mutation and search hooks, so tests can control
+// their responses without a network layer.
+const { mutateAsync, mutation, searchHook, searchState } = vi.hoisted(() => {
   const mutateAsync = vi.fn()
-  return { mutateAsync, mutation: { mutateAsync, isPending: false } }
+  const searchHook = vi.fn()
+  const searchState = {
+    data: { items: [] as unknown[] },
+    isFetching: false,
+  }
+
+  return {
+    mutateAsync,
+    mutation: { mutateAsync, isPending: false },
+    searchHook,
+    searchState,
+  }
 })
 
 vi.mock('@/api/generated/endpoints/issues/issues', () => ({
   useCreateIssueTeamsTeamIdIssuesPost: () => mutation,
+}))
+
+vi.mock('@/api/generated/endpoints/search/search', () => ({
+  useSearchSearchGet: (...args: unknown[]) => {
+    searchHook(...args)
+    return searchState
+  },
+}))
+
+const { openIssue } = vi.hoisted(() => ({
+  openIssue: vi.fn(),
+}))
+
+vi.mock('@/issues/surface', () => ({
+  useOpenIssue: () => openIssue,
 }))
 
 // The team's description templates (#97). Most tests have none, which is
@@ -108,6 +134,16 @@ const TEAM: TeamContextValue = {
   statuses: [status(1, 'Todo'), status(2, 'In Progress')],
 }
 
+const SUGGESTION = {
+  id: 101,
+  identifier: 'ENG-101',
+  title: 'Fix the login button',
+  status: {
+    name: 'Todo',
+    color: '#888',
+  },
+}
+
 function Harness({ onClose, onShortcut }: { onClose: () => void; onShortcut: () => void }) {
   const [open, setOpen] = useState(true)
   const close = () => {
@@ -144,6 +180,10 @@ const optionsOf = (name: string) =>
 
 beforeEach(() => {
   mutateAsync.mockReset()
+  searchHook.mockReset()
+  openIssue.mockReset()
+  searchState.data = { items: [] }
+  searchState.isFetching = false
   mutation.isPending = false
   templates.data = []
 })
@@ -260,6 +300,105 @@ describe('NewIssueModal', () => {
     expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Issue title' }).value).toBe(
       'Cannot log in? see /docs',
     )
+  })
+
+  it('keeps CJK search text intact', async () => {
+    const { user } = renderModal()
+    const title = screen.getByRole<HTMLInputElement>('textbox', { name: 'Issue title' })
+
+    await user.type(title, '登录按钮问题')
+
+    await waitFor(() => {
+      expect(searchHook).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          q: '登录按钮问题',
+          limit: 3,
+        }),
+        expect.anything(),
+      )
+    })
+  })
+
+  it('dismisses similar issues until the modal is reopened', async () => {
+    searchState.data = { items: [SUGGESTION] }
+
+    const { user } = renderModal()
+    const title = screen.getByRole<HTMLInputElement>('textbox', { name: 'Issue title' })
+
+    await user.type(title, 'fix login button')
+
+    expect(await screen.findByText('Fix the login button')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss similar issues' }))
+
+    expect(screen.queryByText('Fix the login button')).toBeNull()
+  })
+
+  it('opens a similar issue in the panel', async () => {
+    searchState.data = { items: [SUGGESTION] }
+
+    const { user } = renderModal()
+    const title = screen.getByRole<HTMLInputElement>('textbox', { name: 'Issue title' })
+
+    await user.type(title, 'fix login button')
+
+    const suggestion = await screen.findByRole('button', {
+      name: /ENG-101.*Fix the login button.*Todo/,
+    })
+
+    await user.click(suggestion)
+
+    expect(openIssue).toHaveBeenCalledWith(SUGGESTION, 'panel')
+  })
+
+  it('does not open a suggestion while composing with IME', async () => {
+    searchState.data = { items: [SUGGESTION] }
+
+    const { user } = renderModal()
+    const title = screen.getByRole<HTMLInputElement>('textbox', { name: 'Issue title' })
+
+    await user.type(title, 'fix login button')
+    await screen.findByText('Fix the login button')
+
+    await user.keyboard('{ArrowDown}')
+    openIssue.mockClear()
+
+    fireEvent.keyDown(title, {
+      key: 'Enter',
+      isComposing: true,
+    })
+
+    expect(openIssue).not.toHaveBeenCalled()
+  })
+
+  it('hides stale suggestions while a new search is fetching', async () => {
+    searchState.data = { items: [SUGGESTION] }
+
+    const { user } = renderModal()
+    const title = screen.getByRole<HTMLInputElement>('textbox', { name: 'Issue title' })
+
+    await user.type(title, 'fix login button')
+    expect(await screen.findByText('Fix the login button')).toBeTruthy()
+
+    searchState.isFetching = true
+    await user.type(title, ' now')
+
+    expect(screen.queryByText('Fix the login button')).toBeNull()
+  })
+
+  it('opens the selected suggestion with Enter', async () => {
+    searchState.data = { items: [SUGGESTION] }
+
+    const { user } = renderModal()
+    const title = screen.getByRole<HTMLInputElement>('textbox', { name: 'Issue title' })
+
+    await user.type(title, 'fix login button')
+    await screen.findByText('Fix the login button')
+
+    await user.keyboard('{ArrowDown}')
+    await user.keyboard('{Enter}')
+
+    expect(openIssue).toHaveBeenCalledWith(SUGGESTION, 'panel')
   })
 
   it('sends nothing for the fields left untouched', async () => {

@@ -7,6 +7,8 @@ export const newIssue = {
   noTemplate: 'No template',
   issueTitle: 'Issue title',
   descriptionPlaceholder: 'Add a description… Markdown works here.',
+  similarIssues: 'Similar issues',
+  dismissSimilarIssues: 'Dismiss similar issues',
   status: 'Status',
   type: 'Type',
   priority: 'Priority',

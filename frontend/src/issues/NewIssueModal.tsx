@@ -3,6 +3,8 @@ import { type FormEvent, useId, useState } from 'react'
 
 import { useCreateIssueTeamsTeamIdIssuesPost } from '@/api/generated/endpoints/issues/issues'
 import { useListTemplatesTeamsTeamIdIssueTemplatesGet } from '@/api/generated/endpoints/templates/templates'
+import { useSearchSearchGet } from '@/api/generated/endpoints/search/search'
+import { useOpenIssue } from '@/issues/surface'
 import { IssuePriority, type IssueType } from '@/api/generated/models'
 import { useTranslation } from '@/i18n'
 import {
@@ -20,6 +22,23 @@ import { useTeamContext } from '@/team/useTeamContext'
 import { Icon } from '@/ui/Icon'
 import { Select } from '@/ui/Select'
 import { useFocusTrap } from '@/ui/useFocusTrap'
+import { useDebounced } from '@/search/useDebounced'
+
+const CJK_RE =
+  /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/
+
+function getSearchPhrase(value: string) {
+  const trimmed = value.trim()
+
+  if (!trimmed) return ''
+
+  if (CJK_RE.test(trimmed)) {
+    const compact = trimmed.replace(/\s+/g, '')
+    return Array.from(compact).length >= 3 ? trimmed : ''
+  }
+
+  return trimmed.split(/\s+/).filter(Boolean).length >= 3 ? trimmed : ''
+}
 
 export function NewIssueModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation(['issues', 'common'])
@@ -32,6 +51,30 @@ export function NewIssueModal({ onClose }: { onClose: () => void }) {
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [suggestionsDismissed, setSuggestionsDismissed] = useState(false)
+  const [selectedSuggestion, setSelectedSuggestion] = useState(-1)
+
+  const openIssue = useOpenIssue()
+  const searchPhrase = useDebounced(getSearchPhrase(title), 400)
+
+  const searchResults = useSearchSearchGet(
+    {
+      q: searchPhrase || 'x',
+      team_id: team.id,
+      limit: 3,
+    },
+    {
+      query: {
+        enabled: searchPhrase.length > 0 && !suggestionsDismissed,
+      },
+    },
+  )
+
+  const suggestions =
+    !suggestionsDismissed && !searchResults.isFetching
+      ? (searchResults.data?.items ?? [])
+      : []
+
   // The template in use, and the text it put there -- which is how choosing
   // another one knows whether anything typed since would be lost (#97).
   const [templateId, setTemplateId] = useState('')
@@ -157,11 +200,93 @@ export function NewIssueModal({ onClose }: { onClose: () => void }) {
               autoFocus
               required
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value)
+                setSelectedSuggestion(-1)
+              }}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing) return
+
+                if (suggestions.length === 0) return
+
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault()
+                  setSelectedSuggestion((current) =>
+                    current < suggestions.length - 1 ? current + 1 : 0,
+                  )
+                  return
+                }
+
+                if (event.key === 'ArrowUp') {
+                  event.preventDefault()
+                  setSelectedSuggestion((current) =>
+                    current > 0 ? current - 1 : suggestions.length - 1,
+                  )
+                  return
+                }
+
+                if (event.key === 'Enter' && selectedSuggestion >= 0) {
+                  event.preventDefault()
+                  openIssue(suggestions[selectedSuggestion], 'panel')
+                }
+              }}
               placeholder={t('newIssue.issueTitle')}
               aria-label={t('newIssue.issueTitle')}
               className="w-full border-none bg-transparent p-0 text-lg font-semibold tracking-tight text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-0"
             />
+            {suggestions.length > 0 && (
+              <div className="mt-2 overflow-hidden rounded-md border border-neutral-900/8 bg-neutral-900/2">
+                <div className="flex items-center justify-between px-3 py-1.5">
+                  <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+                    {t('newIssue.similarIssues')}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setSuggestionsDismissed(true)}
+                    className="btn btn-ghost btn-icon btn-xs text-neutral-400"
+                    aria-label={t('newIssue.dismissSimilarIssues')}
+                  >
+                    <Icon name="close" size={11} />
+                  </button>
+                </div>
+
+                <ul className="divide-y divide-neutral-900/6">
+                  {suggestions.map((issue, index) => (
+                    <li key={issue.id}>
+                      <button
+                        type="button"
+                        onClick={() => openIssue(issue, 'panel')}
+                        className={`w-full px-3 py-2 text-left transition-colors focus:outline-none ${
+                          index === selectedSuggestion
+                            ? 'bg-brand-500/10'
+                            : 'hover:bg-neutral-900/4'
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="identifier shrink-0 text-[11px] font-medium text-neutral-400">
+                            {issue.identifier}
+                          </span>
+
+                          <span className="min-w-0 flex-1 truncate text-xs font-medium text-neutral-800">
+                            {issue.title}
+                          </span>
+
+                          <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-neutral-400">
+                          <span
+                            className="dot"
+                            style={{ ['--dot' as string]: issue.status.color }}
+                          />
+                            {issue.status.name}
+                          </span>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <MarkdownEditor
               value={description}
               onChange={setDescription}

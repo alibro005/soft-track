@@ -246,9 +246,18 @@ export default function BoardPage() {
   const openShortcuts = useCallback(() => overlays.open('shortcuts'), [overlays])
   const togglePalette = useCallback(() => overlays.toggle('palette'), [overlays])
 
+  const closeTop = useCallback(() => {
+    if (issueNumber) {
+      navigate(`/${teamKey}`)
+      return
+    }
+
+    overlays.closeTop()
+  }, [issueNumber, navigate, overlays, teamKey])
+
   useGlobalShortcuts({
     togglePalette,
-    closeTop: overlays.closeTop,
+    closeTop,
     openNewIssue,
     openShortcuts,
     suppressed: overlays.isOpen('palette') || overlays.isOpen('shortcuts'),
