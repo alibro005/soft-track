@@ -4,7 +4,7 @@ import type { SavedViewRead } from '@/api/generated/models'
 import { useAuth } from '@/auth/useAuth'
 import type { BoardFilters } from '@/board/filters'
 import type { Arrangement } from '@/board/sorting'
-import { CycleList } from '@/cycles/CycleList'
+import { SprintList } from '@/sprints/SprintList'
 import { useTranslation } from '@/i18n'
 import { InvitesBanner } from '@/team/InvitesBanner'
 import { pickableProjects } from '@/team/projects'
@@ -22,7 +22,8 @@ export function Sidebar({
   onFiltersChange,
   onEditView,
   isAdmin,
-  onNewCycle,
+  onNewSprint,
+  onNewProject,
   onImport,
 }: {
   filters: BoardFilters
@@ -33,13 +34,14 @@ export function Sidebar({
   /** Team admins can set the team default and tidy up others' shared views. */
   isAdmin: boolean
   /** Absent for a guest (#104), and so are the buttons. */
-  onNewCycle?: () => void
+  onNewSprint?: () => void
+  onNewProject?: () => void
   onImport?: () => void
 }) {
   const { user, logout } = useAuth()
-  const { team, teams, projects: allProjects, cycles } = useTeamContext()
+  const { team, teams, projects: allProjects, sprints } = useTeamContext()
   // Archived projects leave the sidebar, unless one is the filter in force --
-  // the board is showing its issues, so the row that toggles it off stays.
+  // the board is showing its tickets, so the row that toggles it off stays.
   const projects = pickableProjects(allProjects, filters.projectId)
   const navigate = useNavigate()
   const { projectId: openProjectId } = useParams<{ projectId?: string }>()
@@ -93,28 +95,41 @@ export function Sidebar({
 
         <div>
           <div className="mb-1.5 flex items-center justify-between px-2">
-            <p className="eyebrow">{t('sidebar.cycles')}</p>
-            {onNewCycle && (
+            <p className="eyebrow">{t('sidebar.sprints')}</p>
+            {onNewSprint && (
               <button
                 type="button"
-                onClick={onNewCycle}
-                aria-label={t('sidebar.newCycle')}
-                title={t('sidebar.newCycle')}
+                onClick={onNewSprint}
+                aria-label={t('sidebar.newSprint')}
+                title={t('sidebar.newSprint')}
                 className="btn btn-ghost btn-icon btn-xs"
               >
                 <Icon name="plus" size={13} />
               </button>
             )}
           </div>
-          <CycleList
-            cycles={cycles}
-            activeCycleId={filters.cycleId}
-            onSelect={(cycleId) => onFiltersChange({ ...filters, cycleId })}
+          <SprintList
+            sprints={sprints}
+            activeSprintId={filters.sprintId}
+            onSelect={(sprintId) => onFiltersChange({ ...filters, sprintId })}
           />
         </div>
 
         <div>
-          <p className="eyebrow mb-1.5 px-2">{t('sidebar.projects')}</p>
+          <div className="mb-1.5 flex items-center justify-between px-2">
+            <p className="eyebrow">{t('sidebar.projects')}</p>
+            {onNewProject && (
+              <button
+                type="button"
+                onClick={onNewProject}
+                aria-label={t('sidebar.newProject')}
+                title={t('sidebar.newProject')}
+                className="btn btn-ghost btn-icon btn-xs"
+              >
+                <Icon name="plus" size={13} />
+              </button>
+            )}
+          </div>
           {projects.length === 0 && (
             <p className="px-2 text-xs text-neutral-400">{t('sidebar.noProjects')}</p>
           )}

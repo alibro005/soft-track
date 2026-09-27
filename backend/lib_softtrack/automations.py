@@ -2,10 +2,10 @@
 
 Two halves, and they are deliberately in different modules. This one is the
 service the settings page talks to -- create, edit, enable, delete, and read
-the run log. `lib_softtrack/rules.py` is the engine the issue, comment and
-cycle services call when something happens. Splitting them the way
-`history.py` and `notifications.py` are split from `issues.py` keeps the hot
-path -- "an issue changed; is there a rule about that" -- free of anything to
+the run log. `lib_softtrack/rules.py` is the engine the ticket, comment and
+sprint services call when something happens. Splitting them the way
+`history.py` and `notifications.py` are split from `tickets.py` keeps the hot
+path -- "a ticket changed; is there a rule about that" -- free of anything to
 do with validating a form.
 
 The rule that shapes most of this module: **a rule may only name things that
@@ -33,8 +33,8 @@ from lib_softtrack.models.page import DEFAULT_LIMIT, Page
 from lib_softtrack.tables import (
     AutomationRule,
     AutomationRun,
-    Cycle,
-    Issue,
+    Sprint,
+    Ticket,
     Label,
     Project,
     Team,
@@ -73,8 +73,8 @@ _ACTION_FIELDS = (
     "set_type",
     "set_assignee_id",
     "add_label_id",
-    "set_cycle_id",
-    "move_to_active_cycle",
+    "set_sprint_id",
+    "move_to_active_sprint",
     "comment_body",
 )
 
@@ -149,17 +149,17 @@ def _validate(
     _belongs_to_team(session, WorkflowStatus, actions.set_status_id, team_id)
     _belongs_to_team(session, Label, actions.add_label_id, team_id)
 
-    cycle = _belongs_to_team(session, Cycle, actions.set_cycle_id, team_id)
-    if cycle is not None and cycle.state.value == "completed":
-        # Not a foreign key problem -- a meaning problem. A completed cycle's
+    sprint = _belongs_to_team(session, Sprint, actions.set_sprint_id, team_id)
+    if sprint is not None and sprint.state.value == "completed":
+        # Not a foreign key problem -- a meaning problem. A completed sprint's
         # numbers are history everywhere else in SoftTrack, and a rule that
         # kept dropping work into it would rewrite a report every time it
         # fired.
         raise api_error(
             status_code=400,
-            code=ErrorCode.cycle_completed,
-            detail="That cycle is completed; its numbers are history. "
-            "Use the active cycle instead.",
+            code=ErrorCode.sprint_completed,
+            detail="That sprint is completed; its numbers are history. "
+            "Use the active sprint instead.",
         )
 
     for user_id in (conditions.if_assignee_id, actions.set_assignee_id):
@@ -233,7 +233,7 @@ def create_rule(
 ) -> AutomationRuleRead:
     get_team_or_404(team_id, session)
     # Admin-only, like statuses and unlike labels: a rule acts on everybody's
-    # issues without asking, which is a bigger thing to hand out than a
+    # tickets without asking, which is a bigger thing to hand out than a
     # colour on a chip.
     require_team_admin(team_id, current_user, session)
 
@@ -319,13 +319,13 @@ def list_runs(
     current_user: User,
     team_id: int,
     rule_id: Optional[int] = None,
-    issue_id: Optional[int] = None,
+    ticket_id: Optional[int] = None,
     limit: int = DEFAULT_LIMIT,
     offset: int = 0,
 ) -> Page[AutomationRunRead]:
     """What the team's rules have done, newest first.
 
-    Readable by any member, not just admins. The log answers "why did my issue
+    Readable by any member, not just admins. The log answers "why did my ticket
     move", and the person asking is the one it moved out from under.
     """
     get_team_or_404(team_id, session)
@@ -334,18 +334,18 @@ def list_runs(
     filters = [AutomationRun.team_id == team_id]
     if rule_id is not None:
         filters.append(AutomationRun.rule_id == rule_id)
-    if issue_id is not None:
-        filters.append(AutomationRun.issue_id == issue_id)
+    if ticket_id is not None:
+        filters.append(AutomationRun.ticket_id == ticket_id)
 
     total = session.exec(
         select(func.count()).select_from(AutomationRun).where(*filters)
     ).one()
 
-    # One join for the issue rather than a lookup per row: the log is read a
-    # page at a time and every row names an issue.
+    # One join for the ticket rather than a lookup per row: the log is read a
+    # page at a time and every row names a ticket.
     rows = session.exec(
-        select(AutomationRun, Issue, Team)
-        .join(Issue, Issue.id == AutomationRun.issue_id)
+        select(AutomationRun, Ticket, Team)
+        .join(Ticket, Ticket.id == AutomationRun.ticket_id)
         .join(Team, Team.id == AutomationRun.team_id)
         .where(*filters)
         .order_by(AutomationRun.id.desc())
@@ -369,9 +369,9 @@ def list_runs(
                 rule_id=run.rule_id,
                 rule_name=run.rule_name,
                 trigger=run.trigger,
-                issue_id=issue.id,
-                issue_identifier=f"{team.key}-{issue.number}",
-                issue_title=issue.title,
+                ticket_id=ticket.id,
+                ticket_identifier=f"{team.key}-{ticket.number}",
+                ticket_title=ticket.title,
                 actor=(
                     UserPublic.model_validate(actors[run.actor_id])
                     if run.actor_id in actors
@@ -380,7 +380,7 @@ def list_runs(
                 summary=run.summary,
                 created_at=run.created_at,
             )
-            for run, issue, team in rows
+            for run, ticket, team in rows
         ],
         total=total,
         limit=limit,
@@ -388,15 +388,15 @@ def list_runs(
     )
 
 
-def delete_runs_for_issue(session: Session, issue_id: int) -> None:
-    """Drop the log rows for an issue being deleted.
+def delete_runs_for_ticket(session: Session, ticket_id: int) -> None:
+    """Drop the log rows for a ticket being deleted.
 
     They hold a foreign key to it, and there is nothing to keep: a log entry
-    about an issue that no longer exists is a link to a 404. Same call and
-    same reasoning as `notifications.delete_for_issue`.
+    about a ticket that no longer exists is a link to a 404. Same call and
+    same reasoning as `notifications.delete_for_ticket`.
     """
     for run in session.exec(
-        select(AutomationRun).where(AutomationRun.issue_id == issue_id)
+        select(AutomationRun).where(AutomationRun.ticket_id == ticket_id)
     ).all():
         session.delete(run)
 
@@ -407,14 +407,14 @@ def delete_runs_for_issue(session: Session, issue_id: int) -> None:
 
 
 def move_status(session: Session, status_id: int, target_id: int) -> None:
-    """Point rules at the column a deleted status's issues were merged into.
+    """Point rules at the column a deleted status's tickets were merged into.
 
-    Called from the status service, which already asks where the issues go.
+    Called from the status service, which already asks where the tickets go.
     Sending the rules after them is the reading that keeps meaning what the
     team meant: the column was merged, not the intent.
 
     Clearing the reference instead would be actively wrong for a *condition* --
-    a null condition means "no opinion", so a rule that fired on issues in one
+    a null condition means "no opinion", so a rule that fired on tickets in one
     column would quietly start firing on all of them.
     """
     for rule in session.exec(
@@ -430,19 +430,19 @@ def move_status(session: Session, status_id: int, target_id: int) -> None:
     session.flush()
 
 
-def clear_cycle(session: Session, cycle_id: int) -> None:
-    """Disarm rules that moved issues into a cycle being deleted.
+def clear_sprint(session: Session, sprint_id: int) -> None:
+    """Disarm rules that moved tickets into a sprint being deleted.
 
-    Unlike a status there is nowhere to send them -- a deleted cycle's issues
+    Unlike a status there is nowhere to send them -- a deleted sprint's tickets
     go to the backlog, and "move it to the backlog" is not what the rule said.
     So the reference goes and the rule is switched off rather than left
     enabled doing less than it claims. It shows up disabled in the settings
     list, which is where somebody can decide what it should say instead.
     """
     for rule in session.exec(
-        select(AutomationRule).where(AutomationRule.set_cycle_id == cycle_id)
+        select(AutomationRule).where(AutomationRule.set_sprint_id == sprint_id)
     ).all():
-        rule.set_cycle_id = None
+        rule.set_sprint_id = None
         rule.is_enabled = False
         session.add(rule)
     session.flush()
@@ -452,9 +452,9 @@ def clear_project(session: Session, project_id: int) -> None:
     """Disarm rules conditioned on a project being deleted.
 
     The condition cannot simply be cleared: a null condition means "no
-    opinion", so a rule that fired on one project's issues would quietly start
-    firing on every issue the team has. Nor is there anywhere to send it, since
-    the project's issues go to no project at all. So the rule is switched off
+    opinion", so a rule that fired on one project's tickets would quietly start
+    firing on every ticket the team has. Nor is there anywhere to send it, since
+    the project's tickets go to no project at all. So the rule is switched off
     with the reference removed, and waits in the settings list for somebody to
     say what it should mean now.
     """

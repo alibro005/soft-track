@@ -1,4 +1,4 @@
-/** Importing issues: the Jira import dialog, its dry-run report and its errors. */
+/** Importing tickets: the Jira import dialog, its dry-run report and its errors. */
 export const imports = {
   jira: {
     title: 'Import from Jira',
@@ -11,24 +11,24 @@ export const imports = {
     // The report: first as a promise (the dry run), then as a receipt.
     wouldCreate: 'This import would create',
     imported: 'Imported',
-    issues_one: '<n>{{count}}</n> issue',
-    issues_other: '<n>{{count}}</n> issues',
+    tickets_one: '<n>{{count}}</n> ticket',
+    tickets_other: '<n>{{count}}</n> tickets',
     skipped_one: '· {{count}} already imported, left alone',
     skipped_other: '· {{count}} already imported, left alone',
     comments_one: '<n>{{count}}</n> comment',
     comments_other: '<n>{{count}}</n> comments',
     labels_one: '<n>{{count}}</n> new label',
     labels_other: '<n>{{count}}</n> new labels',
-    projects_one: '<n>{{count}}</n> project from an epic',
-    projects_other: '<n>{{count}}</n> projects from epics',
+    projects_one: '<n>{{count}}</n> epic',
+    projects_other: '<n>{{count}}</n> epics',
     // What was created, by name, after the count.
     names: '— {{names}}',
     unmatchedTitle: 'Not members of this team',
     unmatchedHint: 'Add them to the team first and re-run to attribute their work.',
     previewTitle: 'First {{shown}} of {{total}}',
     working: 'Working…',
-    confirm_one: 'Import {{count}} issue',
-    confirm_other: 'Import {{count}} issues',
+    confirm_one: 'Import {{count}} ticket',
+    confirm_other: 'Import {{count}} tickets',
     check: 'Check the file',
     errors: {
       read: 'That import could not be read.',

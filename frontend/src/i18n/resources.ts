@@ -4,10 +4,10 @@ import { automations } from '@/i18n/en/automations'
 import { board } from '@/i18n/en/board'
 import { calendar } from '@/i18n/en/calendar'
 import { common } from '@/i18n/en/common'
-import { cycles } from '@/i18n/en/cycles'
+import { sprints } from '@/i18n/en/sprints'
 import { errors } from '@/i18n/en/errors'
 import { imports } from '@/i18n/en/imports'
-import { issues } from '@/i18n/en/issues'
+import { tickets } from '@/i18n/en/tickets'
 import { keyboard } from '@/i18n/en/keyboard'
 import { landing } from '@/i18n/en/landing'
 import { markdown } from '@/i18n/en/markdown'
@@ -25,7 +25,7 @@ export const resources = {
   en: {
     common,
     settings,
-    issues,
+    tickets,
     board,
     auth,
     team,
@@ -33,7 +33,7 @@ export const resources = {
     projects,
     views,
     reports,
-    cycles,
+    sprints,
     automations,
     imports,
     search,

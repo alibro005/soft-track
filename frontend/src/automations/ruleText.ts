@@ -1,8 +1,8 @@
 import type {
   AutomationRuleRead,
   AutomationTrigger,
-  CycleRead,
-  IssuePriority,
+  SprintRead,
+  TicketPriority,
   LabelRead,
   ProjectRead,
   RuleActions,
@@ -18,7 +18,7 @@ import { formatList } from '@/i18n/format'
  *
  * A rule is a row of ids, and a row of ids is unreadable. Every list of rules
  * anybody has ever had to audit was audited by reading it out loud, so the
- * settings page renders exactly that -- "When an issue is created, if it is
+ * settings page renders exactly that -- "When a ticket is created, if it is
  * urgent, set status to Todo" -- from the same pieces the editor collects.
  *
  * Pure and in its own module so it can be tested without a DOM, and so the
@@ -34,20 +34,20 @@ import { formatList } from '@/i18n/format'
 // Getters over the catalog, so every caller keeps reading
 // `TRIGGER_LABELS[trigger]` and gets the current language's words.
 export const TRIGGER_LABELS: Record<AutomationTrigger, string> = {
-  get issue_created() {
-    return i18n.t('automations:trigger.issue_created')
+  get ticket_created() {
+    return i18n.t('automations:trigger.ticket_created')
   },
   get status_changed() {
     return i18n.t('automations:trigger.status_changed')
   },
-  get issue_assigned() {
-    return i18n.t('automations:trigger.issue_assigned')
+  get ticket_assigned() {
+    return i18n.t('automations:trigger.ticket_assigned')
   },
   get comment_added() {
     return i18n.t('automations:trigger.comment_added')
   },
-  get cycle_completed() {
-    return i18n.t('automations:trigger.cycle_completed')
+  get sprint_completed() {
+    return i18n.t('automations:trigger.sprint_completed')
   },
   get branch_created() {
     return i18n.t('automations:trigger.branch_created')
@@ -66,7 +66,7 @@ export type RuleVocabulary = {
   labels: LabelRead[]
   projects: ProjectRead[]
   members: TeamMemberRead[]
-  cycles: CycleRead[]
+  sprints: SprintRead[]
 }
 
 function statusName(vocabulary: RuleVocabulary, id: number): string {
@@ -97,21 +97,21 @@ function personName(vocabulary: RuleVocabulary, id: number): string {
   )
 }
 
-function cycleName(vocabulary: RuleVocabulary, id: number): string {
+function sprintName(vocabulary: RuleVocabulary, id: number): string {
   return (
-    vocabulary.cycles.find((c) => c.id === id)?.display_name ??
-    i18n.t('automations:missing.cycle')
+    vocabulary.sprints.find((c) => c.id === id)?.display_name ??
+    i18n.t('automations:missing.sprint')
   )
 }
 
 // Mid-clause: "its priority is urgent" -- the catalog's clause words.
-function priorityName(priority: IssuePriority): string {
+function priorityName(priority: TicketPriority): string {
   return i18n.t(`automations:priorityInClause.${priority}`)
 }
 
 /**
  * The conditions, one clause each. Empty means the rule fires on everything
- * its trigger reaches, which the caller renders as "any issue" rather than as
+ * its trigger reaches, which the caller renders as "any ticket" rather than as
  * nothing at all — a blank line there reads as a rule that is broken.
  */
 export function describeConditions(
@@ -191,12 +191,12 @@ export function describeActions(
       }),
     )
   }
-  if (actions.move_to_active_cycle) {
-    clauses.push(i18n.t('automations:action.moveToActiveCycle'))
-  } else if (actions.set_cycle_id != null) {
+  if (actions.move_to_active_sprint) {
+    clauses.push(i18n.t('automations:action.moveToActiveSprint'))
+  } else if (actions.set_sprint_id != null) {
     clauses.push(
-      i18n.t('automations:action.moveToCycle', {
-        cycle: cycleName(vocabulary, actions.set_cycle_id),
+      i18n.t('automations:action.moveToSprint', {
+        sprint: sprintName(vocabulary, actions.set_sprint_id),
       }),
     )
   }
@@ -224,7 +224,7 @@ export function describeRule(
     actions: joinClauses(actions),
   }
   const hasConditions = conditions.length > 0
-  // A rule can be left with no actions when the cycle it filled is deleted;
+  // A rule can be left with no actions when the sprint it filled is deleted;
   // it is switched off at the same time. Saying so beats an empty sentence.
   if (actions.length === 0) {
     return hasConditions

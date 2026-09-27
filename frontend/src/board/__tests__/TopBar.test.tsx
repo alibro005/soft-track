@@ -18,7 +18,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 
 import { AXIOS_INSTANCE } from '@/api/client'
-import type { CycleRead, LabelRead, ProjectRead, StatusRead, TeamMemberRead } from '@/api/generated/models'
+import type { SprintRead, LabelRead, ProjectRead, StatusRead, TeamMemberRead } from '@/api/generated/models'
 import { NO_FILTERS, type BoardFilters } from '@/board/filters'
 import { DEFAULT_SORT } from '@/board/sorting'
 import { TopBar } from '@/board/TopBar'
@@ -30,7 +30,7 @@ vi.mock('@/notifications/useNotifications', () => ({
   useUnreadCount: () => 0,
 }))
 
-const OBJECT_URL = 'blob:http://localhost/issues-csv'
+const OBJECT_URL = 'blob:http://localhost/tickets-csv'
 
 function status(id: number, name: string): StatusRead {
   return { id, team_id: 7, name, category: 'unstarted', position: id, color: '#888' }
@@ -59,26 +59,26 @@ const PROJECT: ProjectRead = {
   created_at: '2026-01-01T00:00:00Z',
   state: 'in_progress',
   archived: false,
-  issue_count: 0,
-  completed_issue_count: 0,
+  ticket_count: 0,
+  completed_ticket_count: 0,
 }
 
 const LABEL: LabelRead = { id: 4, team_id: 7, name: 'Bug', color: '#456' }
 
-const CYCLE: CycleRead = {
+const SPRINT: SprintRead = {
   id: 6,
   team_id: 7,
   number: 1,
-  display_name: 'Cycle 1',
+  display_name: 'Sprint 1',
   starts_at: '2026-01-05T09:00:00Z',
   ends_at: '2026-01-19T09:00:00Z',
   state: 'active',
   progress: {
-    issues_total: 0,
-    issues_completed: 0,
+    tickets_total: 0,
+    tickets_completed: 0,
     points_total: 0,
     points_completed: 0,
-    issues_unestimated: 0,
+    tickets_unestimated: 0,
   },
 }
 
@@ -88,7 +88,7 @@ const TEAM: TeamContextValue = {
   projects: [PROJECT],
   labels: [LABEL],
   members: [member(10, 'Ada Lovelace')],
-  cycles: [CYCLE],
+  sprints: [SPRINT],
   statuses: [status(1, 'Todo'), status(3, 'In Progress')],
 }
 
@@ -99,7 +99,7 @@ const ALL_FILTERS: BoardFilters = {
   assignee: 'unassigned',
   labelId: LABEL.id,
   projectId: PROJECT.id,
-  cycleId: CYCLE.id,
+  sprintId: SPRINT.id,
   due: null,
   type: null,
 }
@@ -117,7 +117,7 @@ function renderTopBar({
         onGroupingChange={vi.fn()}
         sort={DEFAULT_SORT}
         onSortChange={vi.fn()}
-        onNewIssue={vi.fn()}
+        onNewTicket={vi.fn()}
         onOpenSidebar={vi.fn()}
         search={search}
         onSearchChange={vi.fn()}
@@ -128,7 +128,7 @@ function renderTopBar({
         notificationsOpen={false}
         onToggleNotifications={vi.fn()}
         onCloseNotifications={vi.fn()}
-        onOpenNotifiedIssue={vi.fn()}
+        onOpenNotifiedTicket={vi.fn()}
       />
     </TeamProvider>,
   )
@@ -189,15 +189,15 @@ describe('TopBar export', () => {
     const button = exportButton()
     expect(button.textContent).toContain('Export CSV')
     expect(button.disabled).toBe(false)
-    expect(button.title).toBe('Download these issues as CSV')
+    expect(button.title).toBe('Download these tickets as CSV')
   })
 
-  it("asks the export endpoint for the team's issues", async () => {
+  it("asks the export endpoint for the team's tickets", async () => {
     const user = renderTopBar()
     await user.click(exportButton())
 
     const { path, params, config } = requestedUrl()
-    expect(path).toBe('/teams/7/issues/export')
+    expect(path).toBe('/teams/7/tickets/export')
     // Nothing is filtered, so nothing is narrowed: an empty query string
     // rather than a parameter set to nothing.
     expect(params).toEqual({})
@@ -209,7 +209,7 @@ describe('TopBar export', () => {
     await user.click(exportButton())
 
     const { path, params } = requestedUrl()
-    expect(path).toBe('/teams/7/issues/export')
+    expect(path).toBe('/teams/7/tickets/export')
     expect(params).toEqual({
       status_id: '3',
       priority: 'high',
@@ -218,7 +218,7 @@ describe('TopBar export', () => {
       unassigned: 'true',
       label_id: '4',
       project_id: '5',
-      cycle_id: '6',
+      sprint_id: '6',
     })
     expect(params.assignee_id).toBeUndefined()
   })
@@ -241,7 +241,7 @@ describe('TopBar export', () => {
     expect(createObjectURL).toHaveBeenCalledWith(csv)
     expect(downloads[0]).toEqual({
       href: OBJECT_URL,
-      download: 'issues.csv',
+      download: 'tickets.csv',
       // Firefox ignores a click on an anchor that is not in the document.
       mounted: true,
     })

@@ -1,12 +1,12 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
-import type { DueFilter, IssuePriority, IssueType } from '@/api/generated/models'
+import type { DueFilter, TicketPriority, TicketType } from '@/api/generated/models'
 import { describeFilters, withoutFilter } from '@/board/filterLabels'
 import { activeCount, type BoardFilters, isEmpty, NO_FILTERS } from '@/board/filters'
 import { useTranslation } from '@/i18n'
-import { DUE_FILTER_LABEL } from '@/issues/dueDate'
-import { PRIORITY_META, PRIORITY_ORDER, TYPE_META, TYPE_ORDER } from '@/issues/issueMeta'
+import { DUE_FILTER_LABEL } from '@/tickets/dueDate'
+import { PRIORITY_META, PRIORITY_ORDER, TYPE_META, TYPE_ORDER } from '@/tickets/ticketMeta'
 import { activeMembers } from '@/team/members'
 import { pickableProjects } from '@/team/projects'
 import { useTeamContext } from '@/team/useTeamContext'
@@ -18,7 +18,7 @@ import { Select } from '@/ui/Select'
  *
  * Six dropdowns across the top bar was never going to fit, and the chips do a
  * job dropdowns cannot: they say what is being hidden. A board narrowed by a
- * filter you cannot see is a board that looks like it has lost your issues.
+ * filter you cannot see is a board that looks like it has lost your tickets.
  */
 export function FilterBar({
   filters,
@@ -33,7 +33,7 @@ export function FilterBar({
   canSave: boolean
 }) {
   const { t } = useTranslation(['board', 'common'])
-  const { members, labels, projects, cycles, statuses } = useTeamContext()
+  const { members, labels, projects, sprints, statuses } = useTeamContext()
   const [open, setOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
@@ -49,7 +49,7 @@ export function FilterBar({
   }, [open])
 
   const count = activeCount(filters)
-  const chips = describeFilters(filters, { members, labels, projects, cycles, statuses })
+  const chips = describeFilters(filters, { members, labels, projects, sprints, statuses })
   const set = <K extends keyof BoardFilters>(key: K, value: BoardFilters[K]) =>
     onChange({ ...filters, [key]: value })
 
@@ -153,7 +153,7 @@ export function FilterBar({
                     dense
                     value={filters.priority ?? ''}
                     onChange={(e) =>
-                      set('priority', (e.target.value || null) as IssuePriority | null)
+                      set('priority', (e.target.value || null) as TicketPriority | null)
                     }
                   >
                     <option value="">{t('filters.any.priority')}</option>
@@ -222,17 +222,17 @@ export function FilterBar({
                   </Select>
                 </Field>
 
-                <Field label={t('filters.fields.cycle')}>
+                <Field label={t('filters.fields.sprint')}>
                   <Select
                     block
                     dense
-                    value={filters.cycleId ?? ''}
-                    onChange={(e) => set('cycleId', e.target.value ? Number(e.target.value) : null)}
+                    value={filters.sprintId ?? ''}
+                    onChange={(e) => set('sprintId', e.target.value ? Number(e.target.value) : null)}
                   >
-                    <option value="">{t('filters.any.cycle')}</option>
-                    {cycles.map((cycle) => (
-                      <option key={cycle.id} value={cycle.id}>
-                        {cycle.display_name}
+                    <option value="">{t('filters.any.sprint')}</option>
+                    {sprints.map((sprint) => (
+                      <option key={sprint.id} value={sprint.id}>
+                        {sprint.display_name}
                       </option>
                     ))}
                   </Select>
@@ -243,7 +243,7 @@ export function FilterBar({
                     block
                     dense
                     value={filters.type ?? ''}
-                    onChange={(e) => set('type', (e.target.value || null) as IssueType | null)}
+                    onChange={(e) => set('type', (e.target.value || null) as TicketType | null)}
                   >
                     <option value="">{t('filters.any.type')}</option>
                     {TYPE_ORDER.map((type) => (

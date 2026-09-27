@@ -1,5 +1,5 @@
 import type {
-  CycleRead,
+  SprintRead,
   LabelRead,
   ProjectRead,
   StatusRead,
@@ -8,15 +8,15 @@ import type {
 import type { BoardFilters } from '@/board/filters'
 import { NO_FILTERS } from '@/board/filters'
 import { i18n } from '@/i18n'
-import { DUE_FILTER_LABEL } from '@/issues/dueDate'
-import { PRIORITY_META, TYPE_META } from '@/issues/issueMeta'
+import { DUE_FILTER_LABEL } from '@/tickets/dueDate'
+import { PRIORITY_META, TYPE_META } from '@/tickets/ticketMeta'
 
 /** What the filter bar needs in order to name an id. */
 export type FilterLookups = {
   members: TeamMemberRead[]
   labels: LabelRead[]
   projects: ProjectRead[]
-  cycles: CycleRead[]
+  sprints: SprintRead[]
   statuses: StatusRead[]
 }
 
@@ -33,7 +33,7 @@ export const EMPTY_LOOKUPS: FilterLookups = {
   members: [],
   labels: [],
   projects: [],
-  cycles: [],
+  sprints: [],
   statuses: [],
 }
 
@@ -94,12 +94,12 @@ export function describeFilters(
         i18n.t('board:filters.missing.project'),
     })
   }
-  if (filters.cycleId !== null) {
-    const cycle = lookups.cycles.find((c) => c.id === filters.cycleId)
+  if (filters.sprintId !== null) {
+    const sprint = lookups.sprints.find((c) => c.id === filters.sprintId)
     chips.push({
-      key: 'cycleId',
-      field: i18n.t('board:filters.fields.cycle'),
-      value: cycle?.display_name ?? i18n.t('board:filters.missing.cycle'),
+      key: 'sprintId',
+      field: i18n.t('board:filters.fields.sprint'),
+      value: sprint?.display_name ?? i18n.t('board:filters.missing.sprint'),
     })
   }
 
@@ -125,7 +125,7 @@ export function describeFilters(
 /** A one-line summary, for a saved view's row in the sidebar. */
 export function summarise(filters: BoardFilters, lookups?: FilterLookups): string {
   const chips = describeFilters(filters, lookups)
-  if (chips.length === 0) return i18n.t('board:filters.allIssues')
+  if (chips.length === 0) return i18n.t('board:filters.allTickets')
   return chips.map((chip) => chip.value).join(' · ')
 }
 

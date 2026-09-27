@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import type { IssueRead, ProjectRead, StatusRead } from '@/api/generated/models'
-import { groupByStatus, pickableProjects, progressLabel, progressRatio } from '@/team/projects'
+import type { TicketRead, ProjectRead, StatusRead } from '@/api/generated/models'
+import {
+  groupByStatus,
+  nextProjectColour,
+  pickableProjects,
+  progressLabel,
+  progressRatio,
+} from '@/team/projects'
 
 function project(id: number, archived: boolean): ProjectRead {
   return {
@@ -12,8 +18,8 @@ function project(id: number, archived: boolean): ProjectRead {
     state: 'planned',
     archived,
     created_at: '2026-01-01T00:00:00Z',
-    issue_count: 0,
-    completed_issue_count: 0,
+    ticket_count: 0,
+    completed_ticket_count: 0,
   }
 }
 
@@ -35,11 +41,35 @@ describe('pickableProjects', () => {
   })
 })
 
+describe('nextProjectColour', () => {
+  const wearing = (...colours: string[]) =>
+    colours.map((color, index) => ({ ...project(index + 1, false), color }))
+
+  it('starts a team on the colour the API defaults to', () => {
+    expect(nextProjectColour([])).toBe('#6366f1')
+  })
+
+  it('skips colours already taken, however they were written', () => {
+    expect(nextProjectColour(wearing('#6366F1', '#ec4899'))).toBe('#14b8a6')
+  })
+
+  it('counts archived projects, whose tickets still wear their colour', () => {
+    const taken = [{ ...project(1, true), color: '#6366f1' }]
+    expect(nextProjectColour(taken)).toBe('#ec4899')
+  })
+
+  it('hands the colours round again once all are taken', () => {
+    const all = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#ef4444', '#22c55e']
+    expect(nextProjectColour(wearing(...all))).toBe('#6366f1')
+    expect(nextProjectColour(wearing(...all, '#6366f1'))).toBe('#ec4899')
+  })
+})
+
 describe('progress', () => {
   const counted = (completed: number, total: number): ProjectRead => ({
     ...project(9, false),
-    issue_count: total,
-    completed_issue_count: completed,
+    ticket_count: total,
+    completed_ticket_count: completed,
   })
 
   it('reads as "n of m done"', () => {
@@ -66,7 +96,7 @@ describe('groupByStatus', () => {
   const TODO = status(1, 'Todo')
   const DOING = status(2, 'Doing')
   const DONE = status(3, 'Done')
-  const inStatus = (id: number, s: StatusRead) => ({ id, status: s }) as IssueRead
+  const inStatus = (id: number, s: StatusRead) => ({ id, status: s }) as TicketRead
 
   it('follows board order and leaves empty columns out', () => {
     const groups = groupByStatus(
@@ -74,6 +104,6 @@ describe('groupByStatus', () => {
       [TODO, DOING, DONE],
     )
     expect(groups.map((group) => group.status.name)).toEqual(['Todo', 'Done'])
-    expect(groups[1].issues.map((issue) => issue.id)).toEqual([1, 3])
+    expect(groups[1].tickets.map((ticket) => ticket.id)).toEqual([1, 3])
   })
 })

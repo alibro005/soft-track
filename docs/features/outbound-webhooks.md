@@ -6,15 +6,15 @@ warehouse without polling. They work well alongside [API tokens](api-tokens.md).
 
 | Event | When |
 |---|---|
-| `issue.created` | An issue is filed (by hand, by import, by anyone) |
-| `issue.updated` | Any of an issue's fields change; `data.changes` says which, from and to |
-| `issue.status_changed` | It moved column; also sends `issue.updated` |
+| `ticket.created` | A ticket is filed (by hand, by import, by anyone) |
+| `ticket.updated` | Any of a ticket's fields change; `data.changes` says which, from and to |
+| `ticket.status_changed` | It moved column; also sends `ticket.updated` |
 | `comment.created` | A comment is added |
-| `cycle.started`, `cycle.completed` | A cycle starts or completes |
+| `sprint.started`, `sprint.completed` | A sprint starts or completes |
 | `ping` | You pressed **Send a ping** |
 
 A change made by an automation rule is sent as a separate delivery, with
-`actor` set to `null`, just as it appears separately in the issue's history.
+`actor` set to `null`, just as it appears separately in the ticket's history.
 
 ## What arrives
 
@@ -22,11 +22,11 @@ A JSON `POST`:
 
 ```json
 {
-  "event": "issue.status_changed",
+  "event": "ticket.status_changed",
   "occurred_at": "2026-09-26T10:31:05+00:00",
   "team": {"id": 1, "key": "ENG", "name": "Engineering"},
   "actor": {"id": 4, "username": "maya", "name": "Maya Chen"},
-  "data": {"issue": {"identifier": "ENG-42", "...": "..."}, "from": {...}, "to": {...}}
+  "data": {"ticket": {"identifier": "ENG-42", "...": "..."}, "from": {...}, "to": {...}}
 }
 ```
 

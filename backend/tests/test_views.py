@@ -109,7 +109,7 @@ def test_an_unknown_grouping_is_refused(client, pair):
     assert response.status_code == 422
 
 
-def test_a_view_with_no_filters_is_all_issues(client, pair):
+def test_a_view_with_no_filters_is_all_tickets(client, pair):
     view = create_view(client, pair, pair["team"]["id"], name="Everything")
     assert all(value in (None, False) for value in view["filters"].values())
 
@@ -369,7 +369,7 @@ def test_unsharing_a_view_withdraws_it_from_everyone_but_its_owner(client, pair)
     assert member_sees["effective_default_id"] is None
 
 
-def test_clearing_the_team_default_leaves_everyone_on_all_issues(client, pair):
+def test_clearing_the_team_default_leaves_everyone_on_all_tickets(client, pair):
     view = create_view(client, pair, pair["team"]["id"], name="Ours", shared=True)
     set_team_default(client, pair, pair["team"]["id"], view["id"])
 
@@ -428,7 +428,7 @@ def test_a_view_that_does_not_exist_is_a_404(client, pair):
     "field,detail",
     [
         ("project_id", "No such project on this team"),
-        ("cycle_id", "No such cycle on this team"),
+        ("sprint_id", "No such sprint on this team"),
     ],
 )
 def test_a_filter_pointing_at_something_that_does_not_exist_is_rejected(
@@ -446,23 +446,23 @@ def test_a_filter_pointing_at_something_that_does_not_exist_is_rejected(
 # --- referential tidiness ------------------------------------------------
 
 
-def test_deleting_a_cycle_clears_the_views_that_filtered_on_it(client, pair):
-    cycle = client.post(
-        f"/teams/{pair['team']['id']}/cycles",
+def test_deleting_a_sprint_clears_the_views_that_filtered_on_it(client, pair):
+    sprint = client.post(
+        f"/teams/{pair['team']['id']}/sprints",
         json={"starts_at": "2026-01-01T00:00:00Z", "ends_at": "2026-01-15T00:00:00Z"},
         headers=pair["headers"],
     ).json()
     view = create_view(
-        client, pair, pair["team"]["id"], name="This cycle", cycle_id=cycle["id"]
+        client, pair, pair["team"]["id"], name="This sprint", sprint_id=sprint["id"]
     )
 
     assert (
-        client.delete(f"/cycles/{cycle['id']}", headers=pair["headers"]).status_code
+        client.delete(f"/sprints/{sprint['id']}", headers=pair["headers"]).status_code
         == 204
     )
 
     (still_there,) = views(client, pair, pair["team"]["id"])["items"]
     assert still_there["id"] == view["id"]
-    # Left pointing at a deleted cycle it would match nothing, which reads as
+    # Left pointing at a deleted sprint it would match nothing, which reads as
     # broken rather than empty.
-    assert still_there["filters"]["cycle_id"] is None
+    assert still_there["filters"]["sprint_id"] is None

@@ -12,8 +12,8 @@ import { Avatar } from '@/ui/Avatar'
 /**
  * The team's projects against their target dates (issue #62).
  *
- * The board and the cycles view are both about work in flight now; an epic
- * spans cycles by definition, so this is the one place that answers "will it
+ * The board and the sprints view are both about work in flight now; an epic
+ * spans sprints by definition, so this is the one place that answers "will it
  * land by the date". Each row opens the project's own page.
  */
 export function RoadmapView({ today = format(new Date(), 'yyyy-MM-dd') }: { today?: string }) {
@@ -87,7 +87,7 @@ function RoadmapRow({ project, today }: { project: ProjectRead; today: string })
           {state.label}
         </span>
 
-        <span className="hidden w-36 shrink-0 md:block" title={progress ?? t('roadmap.noIssues')}>
+        <span className="hidden w-36 shrink-0 md:block" title={progress ?? t('roadmap.noTickets')}>
           <span className="block h-1.5 overflow-hidden rounded-full bg-neutral-900/8">
             <span
               className="block h-full rounded-full"
@@ -95,7 +95,7 @@ function RoadmapRow({ project, today }: { project: ProjectRead; today: string })
             />
           </span>
           <span className="mt-0.5 block text-[11px] text-neutral-400">
-            {progress ?? t('roadmap.noIssues')}
+            {progress ?? t('roadmap.noTickets')}
           </span>
         </span>
 

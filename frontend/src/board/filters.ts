@@ -1,11 +1,11 @@
 import type {
   DueFilter,
-  IssuePriority,
-  IssueType,
-  ListIssuesTeamsTeamIdIssuesGetParams,
+  TicketPriority,
+  TicketType,
+  ListTicketsTeamsTeamIdTicketsGetParams,
   ViewFilters,
 } from '@/api/generated/models'
-import { localToday } from '@/issues/dueDate'
+import { localToday } from '@/tickets/dueDate'
 
 /** Someone in particular, nobody at all, or no opinion. */
 export type AssigneeFilter = number | 'unassigned' | null
@@ -13,7 +13,7 @@ export type AssigneeFilter = number | 'unassigned' | null
 /**
  * What the board is narrowed to.
  *
- * Null everywhere means "all issues" rather than a filter matching nothing,
+ * Null everywhere means "all tickets" rather than a filter matching nothing,
  * which is what makes an empty saved view sensible.
  *
  * `unassigned` is deliberately a value of `assignee` rather than a flag beside
@@ -22,15 +22,15 @@ export type AssigneeFilter = number | 'unassigned' | null
  */
 export type BoardFilters = {
   statusId: number | null
-  priority: IssuePriority | null
+  priority: TicketPriority | null
   assignee: AssigneeFilter
   labelId: number | null
   projectId: number | null
-  cycleId: number | null
+  sprintId: number | null
   /** Overdue, due this week, or no due date (#87). */
   due: DueFilter | null
   /** Bug, task or story (#89). */
-  type: IssueType | null
+  type: TicketType | null
 }
 
 export const NO_FILTERS: BoardFilters = {
@@ -39,7 +39,7 @@ export const NO_FILTERS: BoardFilters = {
   assignee: null,
   labelId: null,
   projectId: null,
-  cycleId: null,
+  sprintId: null,
   due: null,
   type: null,
 }
@@ -57,9 +57,17 @@ const KEYS = {
   assignee: 'assignee',
   labelId: 'label',
   projectId: 'project',
-  cycleId: 'cycle',
+  sprintId: 'sprint',
   due: 'due',
   type: 'type',
+} as const
+
+/**
+ * Keys a filter used to be written under, still read -- never written -- so
+ * the links already sent keep working. Sprints were called cycles until #214.
+ */
+const LEGACY_KEYS = {
+  sprintId: 'cycle',
 } as const
 
 const DUE_VALUES: readonly string[] = ['overdue', 'this_week', 'none']
@@ -82,16 +90,16 @@ export function fromSearchParams(params: URLSearchParams): BoardFilters {
     // rule covers it -- a link naming a status another team deleted shows an
     // unfiltered board rather than an error.
     statusId: readNumber(params.get(KEYS.statusId)),
-    priority: (params.get(KEYS.priority) as IssuePriority | null) ?? null,
+    priority: (params.get(KEYS.priority) as TicketPriority | null) ?? null,
     assignee: assignee === 'unassigned' ? 'unassigned' : readNumber(assignee),
     labelId: readNumber(params.get(KEYS.labelId)),
     projectId: readNumber(params.get(KEYS.projectId)),
-    cycleId: readNumber(params.get(KEYS.cycleId)),
+    sprintId: readNumber(params.get(KEYS.sprintId) ?? params.get(LEGACY_KEYS.sprintId)),
     due: DUE_VALUES.includes(params.get(KEYS.due) ?? '')
       ? (params.get(KEYS.due) as DueFilter)
       : null,
     type: TYPE_VALUES.includes(params.get(KEYS.type) ?? '')
-      ? (params.get(KEYS.type) as IssueType)
+      ? (params.get(KEYS.type) as TicketType)
       : null,
   }
 }
@@ -109,14 +117,14 @@ export function toSearchParams(filters: BoardFilters): URLSearchParams {
   if (filters.assignee !== null) params.set(KEYS.assignee, String(filters.assignee))
   if (filters.labelId !== null) params.set(KEYS.labelId, String(filters.labelId))
   if (filters.projectId !== null) params.set(KEYS.projectId, String(filters.projectId))
-  if (filters.cycleId !== null) params.set(KEYS.cycleId, String(filters.cycleId))
+  if (filters.sprintId !== null) params.set(KEYS.sprintId, String(filters.sprintId))
   if (filters.due) params.set(KEYS.due, filters.due)
   if (filters.type) params.set(KEYS.type, filters.type)
   return params
 }
 
 /**
- * The same filters as the issue list endpoint wants them.
+ * The same filters as the ticket list endpoint wants them.
  *
  * `today` goes with a due filter so "this week" is the viewer's week, not
  * the server's.
@@ -124,7 +132,7 @@ export function toSearchParams(filters: BoardFilters): URLSearchParams {
 export function toQueryParams(
   filters: BoardFilters,
   today = localToday(),
-): ListIssuesTeamsTeamIdIssuesGetParams {
+): ListTicketsTeamsTeamIdTicketsGetParams {
   return {
     status_id: filters.statusId ?? undefined,
     priority: filters.priority ?? undefined,
@@ -132,7 +140,7 @@ export function toQueryParams(
     unassigned: filters.assignee === 'unassigned' ? true : undefined,
     label_id: filters.labelId ?? undefined,
     project_id: filters.projectId ?? undefined,
-    cycle_id: filters.cycleId ?? undefined,
+    sprint_id: filters.sprintId ?? undefined,
     due: filters.due ?? undefined,
     today: filters.due ? today : undefined,
     type: filters.type ?? undefined,
@@ -147,7 +155,7 @@ export function fromViewFilters(filters: ViewFilters): BoardFilters {
     assignee: filters.unassigned ? 'unassigned' : (filters.assignee_id ?? null),
     labelId: filters.label_id ?? null,
     projectId: filters.project_id ?? null,
-    cycleId: filters.cycle_id ?? null,
+    sprintId: filters.sprint_id ?? null,
     due: filters.due ?? null,
     type: filters.type ?? null,
   }
@@ -162,7 +170,7 @@ export function toViewFilters(filters: BoardFilters): ViewFilters {
     unassigned: filters.assignee === 'unassigned',
     label_id: filters.labelId,
     project_id: filters.projectId,
-    cycle_id: filters.cycleId,
+    sprint_id: filters.sprintId,
     due: filters.due,
     type: filters.type,
   }
@@ -192,7 +200,7 @@ export function sameFilters(a: BoardFilters, b: BoardFilters): boolean {
     a.assignee === b.assignee &&
     a.labelId === b.labelId &&
     a.projectId === b.projectId &&
-    a.cycleId === b.cycleId &&
+    a.sprintId === b.sprintId &&
     a.due === b.due &&
     a.type === b.type
   )

@@ -3,11 +3,11 @@ export const automations = {
   // Clauses rather than sentences: settings/automation slots them into its
   // "When {{trigger}}, if {{conditions}}, {{actions}}." templates.
   trigger: {
-    issue_created: 'an issue is created',
-    status_changed: 'an issue changes status',
-    issue_assigned: 'an issue is assigned',
+    ticket_created: 'a ticket is created',
+    status_changed: 'a ticket changes status',
+    ticket_assigned: 'a ticket is assigned',
     comment_added: 'a comment is added',
-    cycle_completed: 'a cycle is completed',
+    sprint_completed: 'a sprint is completed',
     branch_created: 'a branch for it appears',
     pull_request_opened: 'a pull request for it opens',
     pull_request_merged: 'a pull request for it merges',
@@ -37,17 +37,17 @@ export const automations = {
     setPriority: 'set its priority to {{priority}}',
     assignTo: 'assign it to {{name}}',
     addLabel: 'add the label {{label}}',
-    moveToActiveCycle: 'move it to the active cycle',
-    moveToCycle: 'move it to {{cycle}}',
+    moveToActiveSprint: 'move it to the active sprint',
+    moveToSprint: 'move it to {{sprint}}',
     postComment: 'post a comment',
   },
   // Standing in for a name whose row has gone.
   missing: {
     status: 'a deleted status',
     label: 'a deleted label',
-    project: 'a deleted project',
+    project: 'a deleted epic',
     person: 'someone who has left',
-    cycle: 'a deleted cycle',
+    sprint: 'a deleted sprint',
   },
   // The whole rule as one sentence (describeRule).
   rule: {

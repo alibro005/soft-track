@@ -1,4 +1,4 @@
-/** Board → the bar that appears while issues are selected, and its errors. */
+/** Board → the bar that appears while tickets are selected, and its errors. */
 export const bulk = {
   toolbarLabel: 'Bulk actions',
   selected_one: '{{count}} selected',
@@ -10,22 +10,22 @@ export const bulk = {
   setAssignee: 'Set assignee',
   assigneePlaceholder: 'Assignee…',
   unassigned: 'Unassigned',
-  setProject: 'Set project',
-  projectPlaceholder: 'Project…',
-  noProject: 'No project',
-  setCycle: 'Set cycle',
-  cyclePlaceholder: 'Cycle…',
-  noCycle: 'No cycle',
+  setProject: 'Set epic',
+  projectPlaceholder: 'Epic…',
+  noProject: 'No epic',
+  setSprint: 'Set sprint',
+  sprintPlaceholder: 'Sprint…',
+  noSprint: 'No sprint',
   setLabels: 'Add or remove a label',
   labelsPlaceholder: 'Labels…',
   clearSelection: 'Clear selection',
   clearSelectionHint: 'Clear selection (Esc)',
   confirmDelete_one:
-    'Delete issue? This cannot be undone. Comments and attachments are deleted with them; sub-issues are kept and moved to the top level.',
+    'Delete ticket? This cannot be undone. Comments and attachments are deleted with them; sub-tickets are kept and moved to the top level.',
   confirmDelete_other:
-    'Delete {{count}} issues? This cannot be undone. Comments and attachments are deleted with them; sub-issues are kept and moved to the top level.',
+    'Delete {{count}} tickets? This cannot be undone. Comments and attachments are deleted with them; sub-tickets are kept and moved to the top level.',
   errors: {
-    update: 'Could not update those issues.',
-    delete: 'Could not delete those issues.',
+    update: 'Could not update those tickets.',
+    delete: 'Could not delete those tickets.',
   },
 } as const

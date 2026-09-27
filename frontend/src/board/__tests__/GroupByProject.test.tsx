@@ -14,7 +14,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
-  IssueRead,
+  TicketRead,
   ProjectRead,
   SavedViewRead,
   StatusRead,
@@ -22,7 +22,7 @@ import type {
 } from '@/api/generated/models'
 import { NO_FILTERS } from '@/board/filters'
 import { DEFAULT_SORT } from '@/board/sorting'
-import { IssueListView } from '@/board/IssueListView'
+import { TicketListView } from '@/board/TicketListView'
 import { KanbanBoard } from '@/board/KanbanBoard'
 import { TeamProvider } from '@/team/TeamContext'
 import type { TeamContextValue } from '@/team/useTeamContext'
@@ -61,8 +61,8 @@ function project(id: number, name: string, color: string): ProjectRead {
     state: 'in_progress',
     archived: false,
     created_at: '2026-01-01T00:00:00Z',
-    issue_count: 0,
-    completed_issue_count: 0,
+    ticket_count: 0,
+    completed_ticket_count: 0,
   }
 }
 
@@ -90,11 +90,11 @@ const TEAM: TeamContextValue = {
   projects: [PLATFORM, BILLING],
   labels: [],
   members: [ADA],
-  cycles: [],
+  sprints: [],
   statuses: [TODO, DOING],
 }
 
-function issue(id: number, title: string, inStatus: StatusRead, projectId: number | null) {
+function ticket(id: number, title: string, inStatus: StatusRead, projectId: number | null) {
   return {
     id,
     team_id: 7,
@@ -114,13 +114,13 @@ function issue(id: number, title: string, inStatus: StatusRead, projectId: numbe
     labels: [],
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
-  } as IssueRead
+  } as TicketRead
 }
 
-const ISSUES = [
-  issue(1, 'Migrate the queue', TODO, PLATFORM.id),
-  issue(2, 'Invoice PDFs', DOING, BILLING.id),
-  issue(3, 'Loose end', DOING, null),
+const TICKETS = [
+  ticket(1, 'Migrate the queue', TODO, PLATFORM.id),
+  ticket(2, 'Invoice PDFs', DOING, BILLING.id),
+  ticket(3, 'Loose end', DOING, null),
 ]
 
 function renderWith(children: ReactNode) {
@@ -163,46 +163,46 @@ afterEach(() => {
 
 describe('the board', () => {
   it('is one column per status, with a project badge on each card', () => {
-    renderWith(<KanbanBoard issues={ISSUES} onStatusChange={() => {}} />)
+    renderWith(<KanbanBoard tickets={TICKETS} onStatusChange={() => {}} />)
 
     expect(within(column('Todo')).getByText('Migrate the queue')).toBeTruthy()
     // The badge is the project's name, so the colour is never the only cue.
-    expect(within(column('Todo')).getByTitle('Project: Platform')).toBeTruthy()
-    expect(within(column('Doing')).getByTitle('Project: Billing')).toBeTruthy()
+    expect(within(column('Todo')).getByTitle('Epic: Platform')).toBeTruthy()
+    expect(within(column('Doing')).getByTitle('Epic: Billing')).toBeTruthy()
   })
 
   it('is one column per project when grouped by project, with no-project last', () => {
     renderWith(
-      <KanbanBoard issues={ISSUES} grouping="project" onStatusChange={() => {}} />,
+      <KanbanBoard tickets={TICKETS} grouping="project" onStatusChange={() => {}} />,
     )
 
     const names = screen
       .getAllByRole('region')
       .map((region) => region.getAttribute('aria-label'))
-    expect(names).toEqual(['Billing', 'Platform', 'No project'])
-    expect(within(column('No project')).getByText('Loose end')).toBeTruthy()
+    expect(names).toEqual(['Billing', 'Platform', 'No epic'])
+    expect(within(column('No epic')).getByText('Loose end')).toBeTruthy()
 
     // The column says the project, so the card says the status instead.
     const card = within(column('Platform'))
-    expect(card.queryByTitle('Project: Platform')).toBeNull()
+    expect(card.queryByTitle('Epic: Platform')).toBeNull()
     expect(card.getByTitle('Todo')).toBeTruthy()
   })
 })
 
 describe('the list', () => {
   it('stays one flat list by status', () => {
-    renderWith(<IssueListView issues={ISSUES} />)
+    renderWith(<TicketListView tickets={TICKETS} />)
     expect(screen.queryAllByRole('heading', { level: 2 })).toEqual([])
   })
 
   it('splits into a section per project, leaving empty ones out', () => {
     renderWith(
-      <IssueListView issues={[ISSUES[0], ISSUES[2]]} grouping="project" />,
+      <TicketListView tickets={[TICKETS[0], TICKETS[2]]} grouping="project" />,
     )
     const headings = screen
       .getAllByRole('heading', { level: 2 })
       .map((heading) => heading.textContent)
-    expect(headings).toEqual(['Platform1', 'No project1'])
+    expect(headings).toEqual(['Platform1', 'No epic1'])
   })
 })
 
@@ -273,7 +273,7 @@ describe('saved views carry the grouping', () => {
     const user = renderWith(
       <SaveViewModal filters={NO_FILTERS} grouping="project" onClose={() => {}} />,
     )
-    expect(screen.getByText('All issues · grouped by project')).toBeTruthy()
+    expect(screen.getByText('All tickets · grouped by epic')).toBeTruthy()
 
     await user.type(screen.getByRole('textbox'), 'Planning')
     await user.click(screen.getByRole('button', { name: 'Save view' }))

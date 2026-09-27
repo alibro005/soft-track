@@ -51,12 +51,12 @@ class ErrorCode(str, enum.Enum):
 
     # --- something you named does not exist ------------------------------------
     team_not_found = "team_not_found"
-    issue_not_found = "issue_not_found"
-    #: Some of a bulk edit's issues are missing or on another team.
-    issues_not_found = "issues_not_found"
+    ticket_not_found = "ticket_not_found"
+    #: Some of a bulk edit's tickets are missing or on another team.
+    tickets_not_found = "tickets_not_found"
     parent_not_found = "parent_not_found"
     project_not_found = "project_not_found"
-    cycle_not_found = "cycle_not_found"
+    sprint_not_found = "sprint_not_found"
     status_not_found = "status_not_found"
     view_not_found = "view_not_found"
     rule_not_found = "rule_not_found"
@@ -71,7 +71,7 @@ class ErrorCode(str, enum.Enum):
     user_not_found = "user_not_found"
     #: The person is not a member of the team the request is about.
     member_not_found = "member_not_found"
-    #: A status, label, project or cycle id that belongs to another team.
+    #: A status, label, project or sprint id that belongs to another team.
     not_on_this_team = "not_on_this_team"
     #: An assignee, lead or filter naming someone outside the team.
     user_not_on_team = "user_not_on_team"
@@ -98,16 +98,16 @@ class ErrorCode(str, enum.Enum):
     team_has_no_statuses = "team_has_no_statuses"
     cannot_deactivate_self = "cannot_deactivate_self"
     cannot_demote_self = "cannot_demote_self"
-    #: A completed cycle's numbers are history and cannot change.
-    cycle_completed = "cycle_completed"
-    cycle_already_active = "cycle_already_active"
-    cycle_dates_invalid = "cycle_dates_invalid"
+    #: A completed sprint's numbers are history and cannot change.
+    sprint_completed = "sprint_completed"
+    sprint_already_active = "sprint_already_active"
+    sprint_dates_invalid = "sprint_dates_invalid"
     link_to_self = "link_to_self"
     parent_is_self = "parent_is_self"
     parent_other_team = "parent_other_team"
-    #: Sub-issues are one level deep.
-    parent_is_subissue = "parent_is_subissue"
-    issue_has_subissues = "issue_has_subissues"
+    #: Sub-tickets are one level deep.
+    parent_is_subticket = "parent_is_subticket"
+    ticket_has_subtickets = "ticket_has_subtickets"
     labels_conflict = "labels_conflict"
     status_order_incomplete = "status_order_incomplete"
     template_order_incomplete = "template_order_incomplete"
@@ -119,7 +119,7 @@ class ErrorCode(str, enum.Enum):
     not_your_comment = "not_your_comment"
     #: A date worked that has not happened yet.
     worklog_in_future = "worklog_in_future"
-    #: Moving an issue to the team it is already on (#98).
+    #: Moving a ticket to the team it is already on (#98).
     transfer_same_team = "transfer_same_team"
     view_other_team = "view_other_team"
     view_private_default = "view_private_default"

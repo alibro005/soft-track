@@ -16,12 +16,12 @@ from lib_softtrack.outbound import webhook_loop
 from app_softtrack.attachments import router as attachments_router
 from app_softtrack.automations import router as automations_router
 from app_softtrack.comments import router as comments_router
-from app_softtrack.cycles import router as cycles_router
+from app_softtrack.sprints import router as sprints_router
 from app_softtrack.events import router as events_router
 from app_softtrack.imports import router as imports_router
 from app_softtrack.integrations import router as integrations_router
 from app_softtrack.invites import router as invites_router
-from app_softtrack.issues import router as issues_router
+from app_softtrack.tickets import router as tickets_router
 from app_softtrack.labels import router as labels_router
 from app_softtrack.notifications import router as notifications_router
 from app_softtrack.outbound import router as outbound_router
@@ -84,7 +84,7 @@ realtime.install()
 
 app = FastAPI(
     title=settings.app_name,
-    description="An open-source, self-hostable issue tracker inspired by Linear.",
+    description="An open-source, self-hostable ticket tracker inspired by Linear.",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -135,10 +135,10 @@ app.include_router(teams_router)
 app.include_router(invites_router)
 app.include_router(projects_router)
 app.include_router(labels_router)
-app.include_router(issues_router)
+app.include_router(tickets_router)
 app.include_router(comments_router)
 app.include_router(attachments_router)
-app.include_router(cycles_router)
+app.include_router(sprints_router)
 app.include_router(reports_router)
 app.include_router(imports_router)
 app.include_router(search_router)
