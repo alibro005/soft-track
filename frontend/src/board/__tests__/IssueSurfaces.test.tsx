@@ -276,4 +276,19 @@ describe('leaving the board for an issue page', () => {
     await user.keyboard('{Enter}')
     expect(screen.getByText('Page for ENG-7')).toBeTruthy()
   })
+
+  it('closes the issue panel with Escape without navigating twice', async () => {
+    const user = renderApp()
+
+    await user.click(screen.getByRole('button', { name: 'list' }))
+    await user.click(screen.getByRole('link', { name: /ENG-7.*Retry storm/ }))
+
+    expect(screen.getByText('Panel for issue 70')).toBeTruthy()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByText('Panel for issue 70')).toBeNull()
+    expect(screen.getByRole('button', { name: 'list' })).toBeTruthy()
+    expect(screen.queryByText(/Page for/)).toBeNull()
+  })
 })

@@ -16,6 +16,7 @@ export function IssueDetailPanel({
   issueId,
   onClose,
   onOpenAsPage,
+  canCloseOnEscape,
 }: {
   issueId: number
   onClose: () => void
@@ -25,13 +26,14 @@ export function IssueDetailPanel({
    * as it does for the command palette.
    */
   onOpenAsPage?: () => void
+  canCloseOnEscape?: () => boolean
 }) {
   const { t } = useTranslation(['issues', 'common'])
   const openIssue = useOpenIssue()
   const dialogRef = useFocusTrap<HTMLDivElement>()
   // The body reads the same query; React Query makes it one request.
   const { data: issue } = useGetIssueIssuesIssueIdGet(issueId)
-  useIssueShortcuts(onClose)
+  useIssueShortcuts(onClose, canCloseOnEscape)
 
   return (
     <IssueSurfaceContext.Provider value="panel">

@@ -66,6 +66,7 @@ function Harness({ onOpenIssue }: { onOpenIssue: (issue: IssueRead) => void }) {
     openNewIssue: () => overlays.open('newIssue'),
     openShortcuts: () => {},
     suppressed: open,
+    hasOpenOverlay: true,
   })
   return (
     <>

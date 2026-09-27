@@ -16,6 +16,7 @@
 export type Overlay =
   | 'newIssue'
   | 'palette'
+  | 'issuePanel'
   | 'shortcuts'
   | 'newCycle'
   | 'import'

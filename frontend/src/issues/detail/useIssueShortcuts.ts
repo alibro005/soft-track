@@ -12,10 +12,12 @@ import { isPlainKey, isTypingTarget } from '@/keyboard/typing'
  * listener, whose Escape handling re-rendered the board mid-dispatch and
  * removed this listener before it could run.
  */
-export function useIssueShortcuts(onClose?: () => void) {
+export function useIssueShortcuts(onClose?: () => void, canClose?: () => boolean,) {
   const onCloseRef = useRef(onClose)
+  const canCloseRef = useRef(canClose)
   useEffect(() => {
     onCloseRef.current = onClose
+    canCloseRef.current = canClose
   })
 
   useEffect(() => {
@@ -24,6 +26,7 @@ export function useIssueShortcuts(onClose?: () => void) {
         // Anything inside the panel that consumes Escape (the mention menu,
         // a native select) stops propagation before this runs, so by the
         // time it reaches here the user does mean the panel.
+        if (canCloseRef.current?.() === false) return
         onCloseRef.current?.()
         return
       }

@@ -44,7 +44,7 @@ import { NewCycleModal } from '@/cycles/NewCycleModal'
 import { useTranslation } from '@/i18n'
 import { ImportJiraModal } from '@/imports/ImportJiraModal'
 import { IssueDetailPanel } from '@/issues/IssueDetailPanel'
-import { type IssueRef, useOpenIssue } from '@/issues/surface'
+import { type IssueRef, surfaceFor, useOpenIssue } from '@/issues/surface'
 import { NewIssueModal } from '@/issues/NewIssueModal'
 import { CommandPalette } from '@/keyboard/CommandPalette'
 import { ShortcutsCheatsheet } from '@/keyboard/ShortcutsCheatsheet'
@@ -106,7 +106,19 @@ export default function BoardPage() {
   // The sidebar is a drawer below the `lg` breakpoint.
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const overlays = useOverlays()
+  const { open: openOverlay, close: closeOverlay } = overlays
   const [editingView, setEditingView] = useState<SavedViewRead | null>(null)
+
+  useEffect(() => {
+    const isIssuePanel =
+      Boolean(issueNumber) && surfaceFor(location.state) === 'panel'
+
+    if (isIssuePanel) {
+      openOverlay('issuePanel')
+    } else {
+      closeOverlay('issuePanel')
+    }
+  }, [issueNumber, location.state, openOverlay, closeOverlay])
 
   // The URL is the filter state, not a copy of it. That is what makes any
   // board someone is looking at a link they can paste, and it gets working
@@ -247,13 +259,13 @@ export default function BoardPage() {
   const togglePalette = useCallback(() => overlays.toggle('palette'), [overlays])
 
   const closeTop = useCallback(() => {
-    if (issueNumber) {
+    if (overlays.top === 'issuePanel') {
       navigate(`/${teamKey}`)
       return
     }
 
     overlays.closeTop()
-  }, [issueNumber, navigate, overlays, teamKey])
+  }, [navigate, overlays, teamKey])
 
   useGlobalShortcuts({
     togglePalette,
@@ -261,6 +273,7 @@ export default function BoardPage() {
     openNewIssue,
     openShortcuts,
     suppressed: overlays.isOpen('palette') || overlays.isOpen('shortcuts'),
+    hasOpenOverlay: overlays.top !== null,
   })
   const commands = useCommands({
     view,
@@ -525,6 +538,7 @@ export default function BoardPage() {
           onClose={() => navigate(`/${team.key}`)}
           // Back from the page is the panel again, over the same view.
           onOpenAsPage={() => leaveForIssue(openIssue)}
+          canCloseOnEscape={() => overlays.top === 'issuePanel'}
         />
       )}
     </TeamProvider>

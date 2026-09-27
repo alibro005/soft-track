@@ -16,7 +16,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ProjectRead, StatusRead, TeamMemberRead } from '@/api/generated/models'
+import type { ProjectRead, SearchHit, StatusRead, TeamMemberRead } from '@/api/generated/models'
 import { NewIssueModal } from '@/issues/NewIssueModal'
 import { useGlobalShortcuts } from '@/keyboard/useGlobalShortcuts'
 import { TeamProvider } from '@/team/TeamContext'
@@ -45,9 +45,25 @@ vi.mock('@/api/generated/endpoints/issues/issues', () => ({
 }))
 
 vi.mock('@/api/generated/endpoints/search/search', () => ({
-  useSearchSearchGet: (...args: unknown[]) => {
-    searchHook(...args)
-    return searchState
+  useSearchSearchGet: (
+    params: unknown,
+    options: { query: { enabled: boolean } },
+  ) => {
+    searchHook(params, options)
+
+    if (!options.query.enabled) {
+      return {
+        data: undefined,
+        isLoading: false,
+        isFetching: false,
+      }
+    }
+
+    return {
+      data: searchState.data,
+      isLoading: false,
+      isFetching: searchState.isFetching,
+    }
   },
 }))
 
@@ -134,14 +150,18 @@ const TEAM: TeamContextValue = {
   statuses: [status(1, 'Todo'), status(2, 'In Progress')],
 }
 
-const SUGGESTION = {
+const SUGGESTION: SearchHit = {
   id: 101,
+  team_id: 7,
+  team_key: 'ENG',
+  number: 101,
   identifier: 'ENG-101',
   title: 'Fix the login button',
-  status: {
-    name: 'Todo',
-    color: '#888',
-  },
+  status: status(1, 'Todo'),
+  priority: 'medium',
+  matched_in: 'title',
+  snippet: '',
+  updated_at: '2026-09-25T10:00:00',
 }
 
 function Harness({ onClose, onShortcut }: { onClose: () => void; onShortcut: () => void }) {
@@ -158,6 +178,7 @@ function Harness({ onClose, onShortcut }: { onClose: () => void; onShortcut: () 
     openNewIssue: onShortcut,
     openShortcuts: onShortcut,
     suppressed: false,
+    hasOpenOverlay: true,
   })
   return open ? <NewIssueModal onClose={close} /> : null
 }
@@ -342,7 +363,22 @@ describe('NewIssueModal', () => {
 
     await user.type(title, 'fix login button')
 
-    const suggestion = await screen.findByRole('button', {
+    await waitFor(() => {
+      expect(searchHook).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          q: 'fix login button',
+          team_id: 7,
+          limit: 3,
+        }),
+        expect.objectContaining({
+          query: expect.objectContaining({
+            enabled: true,
+          }),
+        }),
+      )
+    })
+
+    const suggestion = await screen.findByRole('option', {
       name: /ENG-101.*Fix the login button.*Todo/,
     })
 
@@ -371,7 +407,7 @@ describe('NewIssueModal', () => {
     expect(openIssue).not.toHaveBeenCalled()
   })
 
-  it('hides stale suggestions while a new search is fetching', async () => {
+  it('keeps suggestions visible while a new search is fetching', async () => {
     searchState.data = { items: [SUGGESTION] }
 
     const { user } = renderModal()
@@ -383,7 +419,7 @@ describe('NewIssueModal', () => {
     searchState.isFetching = true
     await user.type(title, ' now')
 
-    expect(screen.queryByText('Fix the login button')).toBeNull()
+    expect(screen.queryByText('Fix the login button')).not.toBeNull()
   })
 
   it('opens the selected suggestion with Enter', async () => {

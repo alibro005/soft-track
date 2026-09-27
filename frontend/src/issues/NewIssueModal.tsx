@@ -70,10 +70,14 @@ export function NewIssueModal({ onClose }: { onClose: () => void }) {
     },
   )
 
-  const suggestions =
-    !suggestionsDismissed && !searchResults.isFetching
-      ? (searchResults.data?.items ?? [])
-      : []
+  const suggestions = suggestionsDismissed
+    ? []
+    : (searchResults.data?.items ?? [])
+
+  const highlightedSuggestion =
+    suggestions.length > 0
+      ? Math.min(selectedSuggestion, suggestions.length - 1)
+      : -1
 
   // The template in use, and the text it put there -- which is how choosing
   // another one knows whether anything typed since would be lost (#97).
@@ -200,12 +204,31 @@ export function NewIssueModal({ onClose }: { onClose: () => void }) {
               autoFocus
               required
               value={title}
+              aria-controls="similar-issues-list"
+              aria-expanded={suggestions.length > 0}
+              aria-activedescendant={
+                highlightedSuggestion >= 0
+                  ? `similar-issue-${suggestions[highlightedSuggestion].id}`
+                  : undefined
+              }
               onChange={(e) => {
                 setTitle(e.target.value)
                 setSelectedSuggestion(-1)
               }}
               onKeyDown={(event) => {
                 if (event.nativeEvent.isComposing) return
+
+                if (event.key === 'Escape') {
+                  if (suggestions.length > 0) {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    setSuggestionsDismissed(true)
+                    return
+                  }
+
+                  onClose()
+                  return
+                }
 
                 if (suggestions.length === 0) return
 
@@ -225,9 +248,9 @@ export function NewIssueModal({ onClose }: { onClose: () => void }) {
                   return
                 }
 
-                if (event.key === 'Enter' && selectedSuggestion >= 0) {
+                if (event.key === 'Enter' && highlightedSuggestion >= 0) {
                   event.preventDefault()
-                  openIssue(suggestions[selectedSuggestion], 'panel')
+                  openIssue(suggestions[highlightedSuggestion], 'panel')
                 }
               }}
               placeholder={t('newIssue.issueTitle')}
@@ -235,9 +258,9 @@ export function NewIssueModal({ onClose }: { onClose: () => void }) {
               className="w-full border-none bg-transparent p-0 text-lg font-semibold tracking-tight text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-0"
             />
             {suggestions.length > 0 && (
-              <div className="mt-2 overflow-hidden rounded-md border border-neutral-900/8 bg-neutral-900/2">
+              <div className="well mt-2 overflow-hidden rounded-card">
                 <div className="flex items-center justify-between px-3 py-1.5">
-                  <span className="text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+                  <span className="eyebrow">
                     {t('newIssue.similarIssues')}
                   </span>
 
@@ -251,14 +274,22 @@ export function NewIssueModal({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
 
-                <ul className="divide-y divide-neutral-900/6">
+                <ul
+                  id="similar-issues-list"
+                  role="listbox"
+                  aria-label={t('newIssue.similarIssues')}
+                  className="divide-y divide-neutral-900/6"
+                >
                   {suggestions.map((issue, index) => (
                     <li key={issue.id}>
                       <button
+                        id={`similar-issue-${issue.id}`}
                         type="button"
+                        role="option"
+                        aria-selected={index === highlightedSuggestion}
                         onClick={() => openIssue(issue, 'panel')}
                         className={`w-full px-3 py-2 text-left transition-colors focus:outline-none ${
-                          index === selectedSuggestion
+                          index === highlightedSuggestion
                             ? 'bg-brand-500/10'
                             : 'hover:bg-neutral-900/4'
                         }`}
