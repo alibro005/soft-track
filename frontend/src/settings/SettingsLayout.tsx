@@ -44,6 +44,8 @@ export default function SettingsLayout() {
           icon: 'bell',
         },
         { to: '/settings/security', label: t('layout.nav.security'), icon: 'shield' },
+        // Your own expense claims (#133): everybody's, and only their own.
+        { to: '/settings/expenses', label: t('layout.nav.expenses'), icon: 'receipt' },
       ],
     },
     ...(teams ?? []).map((team) => ({
@@ -58,6 +60,11 @@ export default function SettingsLayout() {
           to: `/settings/teams/${team.key}/statuses`,
           label: t('layout.nav.statuses'),
           icon: 'board' as IconName,
+        },
+        {
+          to: `/settings/teams/${team.key}/fields`,
+          label: t('layout.nav.fields'),
+          icon: 'sliders' as IconName,
         },
         {
           to: `/settings/teams/${team.key}/templates`,
@@ -95,6 +102,52 @@ export default function SettingsLayout() {
                 to: '/settings/admin/users',
                 label: t('layout.nav.users'),
                 icon: 'shield' as IconName,
+              },
+              {
+                to: '/settings/admin/departments',
+                label: t('layout.nav.departments'),
+                icon: 'building' as IconName,
+              },
+            ],
+          },
+        ]
+      : []),
+    // Money (#130): a section of its own, for finance admins only -- a site
+    // admin without the flag sees no Finance here at all.
+    ...(user.is_finance_admin
+      ? [
+          {
+            title: t('layout.groups.finance'),
+            entries: [
+              {
+                to: '/settings/finance/compensation',
+                label: t('layout.nav.compensation'),
+                icon: 'banknote' as IconName,
+              },
+              {
+                to: '/settings/finance/payroll',
+                label: t('layout.nav.payroll'),
+                icon: 'calendar' as IconName,
+              },
+              {
+                to: '/settings/finance/expenses',
+                label: t('layout.nav.expenseClaims'),
+                icon: 'receipt' as IconName,
+              },
+              {
+                to: '/settings/finance/reimbursements',
+                label: t('layout.nav.reimbursements'),
+                icon: 'undo' as IconName,
+              },
+              {
+                to: '/settings/finance/budgets',
+                label: t('layout.nav.budgets'),
+                icon: 'building' as IconName,
+              },
+              {
+                to: '/settings/finance/reports',
+                label: t('layout.nav.financeReports'),
+                icon: 'chart' as IconName,
               },
             ],
           },

@@ -1,7 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from lib_identity.models.departments import DepartmentRef
 
 
 class UserCreate(BaseModel):
@@ -33,6 +35,24 @@ class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PersonRef(BaseModel):
+    """Somebody a profile points at: a manager, or one of their reports (#124).
+
+    Enough to show them and link to them -- name, handle, avatar and title --
+    and whether the account is still active: a deactivated manager is shown
+    as one, not hidden, because the people reporting to them still do.
+    """
+
+    id: int
+    username: str
+    full_name: str
+    avatar_color: str
+    is_active: bool
+    job_title: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserMe(UserPublic):
     """The signed-in user's own record.
 
@@ -42,12 +62,31 @@ class UserMe(UserPublic):
     """
 
     is_site_admin: bool
+    #: Whether they can see money (#130): pay, payroll runs, budgets and
+    #: everybody's expense claims. Granted by a site admin, and separate from
+    #: being one. What the settings nav reads to offer a Finance section.
+    is_finance_admin: bool
     #: False for an account created by signing in with Google or GitHub and
     #: never given one. What the Security page reads to offer "Set a password"
     #: instead of "Change password", and what stops the app asking for a
     #: password that does not exist.
     has_password: bool
     created_at: datetime
+    #: What the organisation knows about them (#122). Null until somebody
+    #: fills it in. Title and location are theirs to edit; the start date is
+    #: set by a site admin.
+    job_title: Optional[str] = None
+    location: Optional[str] = None
+    started_on: Optional[date] = None
+    #: Set by a site admin, like the start date (#123).
+    department: Optional[DepartmentRef] = None
+    #: Who they report to (#124), also set by a site admin.
+    manager: Optional[PersonRef] = None
+
+
+#: Long enough for "Senior Staff Site Reliability Engineer, Payments" and a
+#: city with its country; short enough to fit a directory row.
+PROFILE_TEXT_MAX = 100
 
 
 class UserUpdate(BaseModel):
@@ -55,6 +94,10 @@ class UserUpdate(BaseModel):
     username: Optional[str] = None
     avatar_color: Optional[str] = None
     email: Optional[EmailStr] = None
+    #: Blank or null clears it. Only the person edits these two; there is no
+    #: admin route to them, because a title and a location are theirs to say.
+    job_title: Optional[str] = Field(default=None, max_length=PROFILE_TEXT_MAX)
+    location: Optional[str] = Field(default=None, max_length=PROFILE_TEXT_MAX)
     #: Required only when `email` changes, and only for an account that has a
     #: password. An address is the identity a password reset would one day be
     #: sent to, so changing it is re-verified even though the session is

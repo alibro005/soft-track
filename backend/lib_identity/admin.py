@@ -11,12 +11,15 @@ leave the tracker unable to say who did what. Deactivation is the delete.
 from typing import Optional
 
 from fastapi import Depends
+from sqlalchemy.orm import aliased, selectinload
 from sqlmodel import Session, col, func, or_, select
 
-from lib_identity import api_tokens
+from lib_finance import access as finance_access
+from lib_identity import api_tokens, managers
+from lib_identity.departments import require_department
 from lib_identity.identity import get_current_user
-from lib_identity.models.admin import AdminUserRead, AdminUserUpdate
-from lib_identity.models.identity import UserMe
+from lib_identity.models.admin import AdminRole, AdminUserRead, AdminUserUpdate
+from lib_identity.models.identity import PersonRef, UserMe
 from lib_softtrack.models.page import DEFAULT_LIMIT, Page
 from lib_softtrack.tables import TeamMember, User
 from lib_utils.password import hash_password
@@ -49,8 +52,25 @@ def list_users(
     q: Optional[str] = None,
     limit: int = DEFAULT_LIMIT,
     offset: int = 0,
+    reports_to_deactivated: bool = False,
+    role: Optional[AdminRole] = None,
 ) -> Page[AdminUserRead]:
     filters = []
+    if role is AdminRole.site_admin:
+        filters.append(User.is_site_admin == True)  # noqa: E712 -- SQL comparison
+    elif role is AdminRole.finance_admin:
+        filters.append(User.is_finance_admin == True)  # noqa: E712
+    if reports_to_deactivated:
+        # Active people whose manager has been deactivated (#124): the links
+        # stay when a manager leaves, and this is where they are found again
+        # rather than one profile at a time.
+        manager = aliased(User)
+        filters.append(User.is_active == True)  # noqa: E712 -- SQL comparison
+        filters.append(
+            col(User.manager_id).in_(
+                select(manager.id).where(manager.is_active == False)  # noqa: E712
+            )
+        )
     if q:
         needle = f"%{q.strip()}%"
         filters.append(
@@ -66,6 +86,13 @@ def list_users(
     users = session.exec(
         select(User)
         .where(*filters)
+        # The page's departments, managers and finance grantors in a query
+        # each, not per row.
+        .options(
+            selectinload(User.department),
+            selectinload(User.manager),
+            selectinload(User.finance_admin_granted_by),
+        )
         .order_by(User.created_at, User.id)
         .limit(limit)
         .offset(offset)
@@ -82,17 +109,41 @@ def list_users(
         ).all()
     )
 
-    items = [_to_read(user, counts.get(user.id, 0)) for user in users]
+    reports = _report_counts(session, [u.id for u in users])
+    items = [
+        _to_read(user, counts.get(user.id, 0), reports.get(user.id, 0))
+        for user in users
+    ]
     return Page(items=items, total=total, limit=limit, offset=offset)
 
 
-def _to_read(user: User, team_count: int) -> AdminUserRead:
+def _report_counts(session: Session, user_ids: list[int]) -> dict[int, int]:
+    """Active direct reports per manager, for a page of people at once."""
+    return dict(
+        session.exec(
+            select(User.manager_id, func.count())
+            .where(
+                col(User.manager_id).in_(user_ids or [0]),
+                User.is_active == True,  # noqa: E712 -- SQL comparison
+            )
+            .group_by(User.manager_id)
+        ).all()
+    )
+
+
+def _to_read(user: User, team_count: int, report_count: int) -> AdminUserRead:
     # Built from UserMe rather than field by field, so a column added to the
     # user's own view of themselves shows up here without a second edit.
+    granted_by = user.finance_admin_granted_by
     return AdminUserRead(
         **UserMe.model_validate(user).model_dump(),
         last_login_at=user.last_login_at,
         team_count=team_count,
+        report_count=report_count,
+        finance_admin_since=user.finance_admin_since,
+        finance_admin_granted_by=(
+            PersonRef.model_validate(granted_by) if granted_by else None
+        ),
     )
 
 
@@ -151,8 +202,18 @@ def update_user(
                 detail="A name cannot be empty",
             )
         user.full_name = name
+    if "started_on" in payload.model_fields_set:
+        user.started_on = payload.started_on
+    if "department_id" in payload.model_fields_set:
+        if payload.department_id is not None:
+            require_department(session, payload.department_id)
+        user.department_id = payload.department_id
+    if "manager_id" in payload.model_fields_set:
+        managers.set_manager(session, user, payload.manager_id)
     if payload.is_site_admin is not None:
         user.is_site_admin = payload.is_site_admin
+    if payload.is_finance_admin is not None:
+        finance_access.set_finance_admin(actor, user, payload.is_finance_admin)
     if payload.is_active is not None:
         if payload.is_active is False and user.is_active:
             # Deactivating has to end the sessions too, or the account keeps
@@ -162,6 +223,9 @@ def update_user(
             # Deleted rather than suspended: reactivating an account should
             # not quietly bring back credentials a script somewhere still has.
             api_tokens.revoke_all(session, user.id)
+            # Finance access goes the same way (#130), logged like any other
+            # revoke. Somebody coming back is granted it again on purpose.
+            finance_access.set_finance_admin(actor, user, False)
         user.is_active = payload.is_active
 
     session.add(user)
@@ -173,7 +237,9 @@ def update_user(
         .select_from(TeamMember)
         .where(TeamMember.user_id == user.id)
     ).one()
-    return _to_read(user, team_count)
+    return _to_read(
+        user, team_count, _report_counts(session, [user.id]).get(user.id, 0)
+    )
 
 
 def reset_password(

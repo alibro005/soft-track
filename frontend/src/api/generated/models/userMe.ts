@@ -5,6 +5,8 @@
  * An open-source, self-hostable ticket tracker inspired by Linear.
  * OpenAPI spec version: 0.1.0
  */
+import type { DepartmentRef } from './departmentRef';
+import type { PersonRef } from './personRef';
 
 /**
  * The signed-in user's own record.
@@ -21,6 +23,12 @@ export interface UserMe {
   avatar_color: string;
   is_active: boolean;
   is_site_admin: boolean;
+  is_finance_admin: boolean;
   has_password: boolean;
   created_at: string;
+  job_title?: string | null;
+  location?: string | null;
+  started_on?: string | null;
+  department?: DepartmentRef | null;
+  manager?: PersonRef | null;
 }

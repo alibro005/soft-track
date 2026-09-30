@@ -11,12 +11,14 @@ from sqlmodel import Session
 from app_softtrack.guards import team_writer
 from lib_identity.identity import get_current_user
 from lib_identity.models.identity import UserPublic
+from lib_softtrack import custom_fields as custom_fields_service
 from lib_softtrack import estimates as estimates_service
 from lib_softtrack import history as history_service
 from lib_softtrack import tickets as tickets_service
 from lib_softtrack import links as links_service
 from lib_softtrack import transfers as transfers_service
 from lib_softtrack.tickets import TicketExportRow
+from lib_softtrack.models.custom_fields import CustomFieldRead
 from lib_softtrack.models.estimates import EstimateSummary
 from lib_softtrack.models.history import TicketEventRead
 from lib_softtrack.models.tickets import (
@@ -43,6 +45,7 @@ from lib_softtrack.tables import (
     SortDirection,
     User,
 )
+from lib_utils.spreadsheet import BOM, safe_text
 from web import get_session
 
 router = APIRouter(tags=["tickets"])
@@ -52,6 +55,10 @@ router = APIRouter(tags=["tickets"])
 #: Stable on purpose: an export is something people build a spreadsheet or a
 #: script on top of, and reordering or renaming a column breaks every one of
 #: those silently. Append, do not rearrange.
+#:
+#: The team's own fields (#117) follow these, one column each under the
+#: field's key, in the team's order. A key can never be one of these names
+#: -- see `RESERVED_KEYS` in lib_softtrack/custom_fields.py.
 CSV_COLUMNS = [
     "key",
     "title",
@@ -87,42 +94,31 @@ def _csv_person(user: Optional[UserPublic]) -> str:
     return user.username or user.email
 
 
-#: What a spreadsheet takes a cell starting with to be a formula.
-_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
-
-
-def _csv_text(value: str) -> str:
-    """Text someone typed, made safe to open in a spreadsheet.
-
-    Excel and Sheets run a cell starting with `=` (or `+`, `-`, `@`) as a
-    formula, so a ticket titled `=HYPERLINK(...)` would run in the reader's
-    spreadsheet. A leading `'` makes the cell plain text again.
-    """
-    return f"'{value}" if value.startswith(_FORMULA_PREFIXES) else value
-
-
-def _csv_row(row: TicketExportRow) -> list[str]:
-    """One ticket as the columns of `CSV_COLUMNS`, in that order."""
+def _csv_row(row: TicketExportRow, fields: list[CustomFieldRead]) -> list[str]:
+    """One ticket as the columns of `CSV_COLUMNS`, then one per field."""
     ticket = row.ticket
     return [
         ticket.identifier,
-        _csv_text(ticket.title),
-        _csv_text(ticket.description or ""),
-        _csv_text(ticket.status.name),
+        safe_text(ticket.title),
+        safe_text(ticket.description or ""),
+        safe_text(ticket.status.name),
         ticket.priority.value,
-        _csv_text(_csv_person(ticket.assignee)),
-        _csv_text(";".join(label.name for label in ticket.labels)),
-        _csv_text(row.project_name),
-        _csv_text(row.sprint_name),
+        safe_text(_csv_person(ticket.assignee)),
+        safe_text(";".join(label.name for label in ticket.labels)),
+        safe_text(row.project_name),
+        safe_text(row.sprint_name),
         "" if ticket.estimate is None else str(ticket.estimate),
-        _csv_text(_csv_person(ticket.creator)),
+        safe_text(_csv_person(ticket.creator)),
         _csv_timestamp(ticket.created_at),
         _csv_timestamp(ticket.updated_at),
         ticket.parent.identifier if ticket.parent is not None else "",
+        *custom_fields_service.export_cells(fields, ticket.custom_fields),
     ]
 
 
-def _csv_chunks(batches: Iterable[list[TicketExportRow]]) -> Iterator[bytes]:
+def _csv_chunks(
+    batches: Iterable[list[TicketExportRow]], fields: list[CustomFieldRead]
+) -> Iterator[bytes]:
     """Encode batches of tickets as CSV, one chunk of bytes per batch.
 
     The whole point of taking batches rather than a list is that this never
@@ -140,13 +136,13 @@ def _csv_chunks(batches: Iterable[list[TicketExportRow]]) -> Iterator[bytes]:
 
     # A UTF-8 BOM, because Excel reads a BOM-less file as the machine's local
     # codepage and mangles every non-ASCII title in it.
-    yield "\ufeff".encode("utf-8")
-    writer.writerow(CSV_COLUMNS)
+    yield BOM.encode("utf-8")
+    writer.writerow([*CSV_COLUMNS, *(field.key for field in fields)])
     yield drain()
 
     for batch in batches:
         for row in batch:
-            writer.writerow(_csv_row(row))
+            writer.writerow(_csv_row(row, fields))
         yield drain()
 
 
@@ -316,9 +312,12 @@ def export_tickets_csv(
         parent_id=parent_id,
         sprint_id=sprint_id,
     )
+    # Read now, on the request's session, like the filters: the columns are
+    # the header, which goes out before any ticket is read.
+    fields = custom_fields_service.list_fields(session, current_user, team_id)
 
     return StreamingResponse(
-        _csv_chunks(batches),
+        _csv_chunks(batches, fields),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=tickets.csv"},
     )
@@ -370,7 +369,7 @@ def list_ticket_events(
     current_user: User = Depends(get_current_user),
 ):
     """What has happened to a ticket: status, priority, assignee, estimate,
-    sprint and project changes, oldest first, with who made each one.
+    sprint, project and team-field changes, oldest first, with who made each.
 
     The latest 100 changes. The values a ticket was created with are its
     starting point rather than changes, and are left out.

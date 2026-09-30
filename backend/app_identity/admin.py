@@ -7,6 +7,7 @@ from lib_identity import admin as admin_service
 from lib_identity.admin import require_site_admin
 from lib_identity.models.admin import (
     AdminPasswordReset,
+    AdminRole,
     AdminUserRead,
     AdminUserUpdate,
 )
@@ -24,10 +25,24 @@ def list_users(
     ),
     limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     offset: int = Query(default=0, ge=0),
+    reports_to_deactivated: bool = Query(
+        default=False,
+        description="Only active people whose manager has been deactivated",
+    ),
+    role: Optional[AdminRole] = Query(
+        default=None, description="Only site admins, or only finance admins"
+    ),
     session: Session = Depends(get_session),
     _: User = Depends(require_site_admin),
 ):
-    return admin_service.list_users(session, q=q, limit=limit, offset=offset)
+    return admin_service.list_users(
+        session,
+        q=q,
+        limit=limit,
+        offset=offset,
+        reports_to_deactivated=reports_to_deactivated,
+        role=role,
+    )
 
 
 @router.patch("/users/{user_id}", response_model=AdminUserRead)

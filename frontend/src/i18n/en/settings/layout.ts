@@ -6,6 +6,7 @@ export const layout = {
   groups: {
     account: 'Account',
     administration: 'Administration',
+    finance: 'Finance',
   },
   nav: {
     profile: 'Profile',
@@ -13,11 +14,20 @@ export const layout = {
     security: 'Security',
     members: 'Members',
     statuses: 'Statuses',
+    fields: 'Fields',
     templates: 'Templates',
     automation: 'Automation',
     repositories: 'Repositories',
     webhooks: 'Webhooks',
     general: 'General',
     users: 'Users',
+    departments: 'Departments',
+    compensation: 'Compensation',
+    payroll: 'Payroll runs',
+    expenses: 'Expenses',
+    expenseClaims: 'Expense claims',
+    reimbursements: 'Reimbursements',
+    budgets: 'Budgets',
+    financeReports: 'Reports',
   },
 } as const

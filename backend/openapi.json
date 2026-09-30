@@ -730,6 +730,36 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "reports_to_deactivated",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Only active people whose manager has been deactivated",
+              "default": false,
+              "title": "Reports To Deactivated"
+            },
+            "description": "Only active people whose manager has been deactivated"
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AdminRole"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only site admins, or only finance admins",
+              "title": "Role"
+            },
+            "description": "Only site admins, or only finance admins"
           }
         ],
         "responses": {
@@ -849,6 +879,358 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/departments": {
+      "get": {
+        "tags": [
+          "departments"
+        ],
+        "summary": "List Departments",
+        "description": "Every department, by name, with how many people are in each.\n\nOpen to anyone signed in, not just site admins: the people directory\nfilters by department, and a department's name is not a secret from the\npeople who work in it.",
+        "operationId": "list_departments_departments_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DepartmentRead"
+                  },
+                  "type": "array",
+                  "title": "Response List Departments Departments Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "departments"
+        ],
+        "summary": "Create Department",
+        "description": "Add a department. Names are unique whatever the case.",
+        "operationId": "create_department_departments_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepartmentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/departments/{department_id}": {
+      "patch": {
+        "tags": [
+          "departments"
+        ],
+        "summary": "Update Department",
+        "description": "Rename a department or change its description.\n\nA rename follows everybody in it: they point at the department, not at\nits name.",
+        "operationId": "update_department_departments__department_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "department_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Department Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepartmentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "departments"
+        ],
+        "summary": "Delete Department",
+        "description": "Delete a department, moving its people where `move_to_id` says.\n\n`move_to_id` is another department, or null for none. Required only when\nsomebody is in it -- including deactivated accounts, which still point at\nit -- and a 409 `department_not_empty` when it is missing.",
+        "operationId": "delete_department_departments__department_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "department_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Department Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DepartmentDelete"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "List People",
+        "description": "Every active account, by name: the people directory.\n\nOpen to anyone signed in, and not scoped to your teams -- a directory is\ninstance-wide on purpose. The filters compose, and are applied by the\ndatabase, which also pages.",
+        "operationId": "list_people_users_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search name, username or job title",
+              "title": "Q"
+            },
+            "description": "Search name, username or job title"
+          },
+          {
+            "name": "department_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Department Id"
+            }
+          },
+          {
+            "name": "manager",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only the people reporting to this username",
+              "title": "Manager"
+            },
+            "description": "Only the people reporting to this username"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeoplePage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{username}": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Get Profile",
+        "description": "Somebody's profile page: who they are, who they report to, who reports\nto them, and the teams they share with you.\n\nReadable by anyone signed in, and for a deactivated account too -- old\nlinks keep landing somewhere.",
+        "operationId": "get_profile_users__username__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Username"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileRead"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -2733,7 +3115,7 @@
           "tickets"
         ],
         "summary": "List Ticket Events",
-        "description": "What has happened to a ticket: status, priority, assignee, estimate,\nsprint and project changes, oldest first, with who made each one.\n\nThe latest 100 changes. The values a ticket was created with are its\nstarting point rather than changes, and are left out.",
+        "description": "What has happened to a ticket: status, priority, assignee, estimate,\nsprint, project and team-field changes, oldest first, with who made each.\n\nThe latest 100 changes. The values a ticket was created with are its\nstarting point rather than changes, and are left out.",
         "operationId": "list_ticket_events_tickets__ticket_id__events_get",
         "security": [
           {
@@ -5546,6 +5928,273 @@
         }
       }
     },
+    "/teams/{team_id}/custom-fields": {
+      "get": {
+        "tags": [
+          "custom-fields"
+        ],
+        "summary": "List Custom Fields",
+        "description": "The team's own ticket fields (#117), archived ones included, in order.\n\nAny member may read them: they say what the keys in a ticket's\n`custom_fields` are and how to show their values.",
+        "operationId": "list_custom_fields_teams__team_id__custom_fields_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomFieldRead"
+                  },
+                  "title": "Response List Custom Fields Teams  Team Id  Custom Fields Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "custom-fields"
+        ],
+        "summary": "Create Custom Field",
+        "description": "Add a field to the team's tickets. Team admins only.",
+        "operationId": "create_custom_field_teams__team_id__custom_fields_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomFieldCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomFieldRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{team_id}/custom-fields/order": {
+      "put": {
+        "tags": [
+          "custom-fields"
+        ],
+        "summary": "Reorder Custom Fields",
+        "description": "Set the order tickets show the fields in. Takes every field that is\nnot archived, at once.",
+        "operationId": "reorder_custom_fields_teams__team_id__custom_fields_order_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomFieldOrder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomFieldRead"
+                  },
+                  "title": "Response Reorder Custom Fields Teams  Team Id  Custom Fields Order Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/custom-fields/{field_id}": {
+      "patch": {
+        "tags": [
+          "custom-fields"
+        ],
+        "summary": "Update Custom Field",
+        "description": "Rename, change the options, make required, bind to ticket types,\narchive or restore. Team admins only.",
+        "operationId": "update_custom_field_custom_fields__field_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "field_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Field Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomFieldUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomFieldRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "custom-fields"
+        ],
+        "summary": "Delete Custom Field",
+        "description": "Destroy an archived field, with every value and history row it has.\n\nRefused for a field that is not archived: archiving is how a field is\nretired, and this is the separate, louder step past it.",
+        "operationId": "delete_custom_field_custom_fields__field_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "field_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Field Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tickets/{ticket_id}/worklogs": {
       "get": {
         "tags": [
@@ -5733,6 +6382,95 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{username}/workload": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Get Workload",
+        "description": "Everything open assigned to somebody, in the teams you share with them.\n\nGrouped by team, with each team's count and points summed by the\ndatabase, and a page of its tickets. Pass `team_id` and `offset` for a\ngroup's next page. Done and cancelled work is not on anybody's plate, and\ntickets on a team you are not on are neither listed nor counted -- a site\nadmin included.",
+        "operationId": "get_workload_users__username__workload_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Username"
+            }
+          },
+          {
+            "name": "per_team",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 5,
+              "title": "Per Team"
+            }
+          },
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this team's group, for its next page",
+              "title": "Team Id"
+            },
+            "description": "Only this team's group, for its next page"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkloadRead"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -7017,6 +7755,2155 @@
         }
       }
     },
+    "/currencies": {
+      "get": {
+        "tags": [
+          "currencies"
+        ],
+        "summary": "List Currencies",
+        "description": "Every currency an amount can be recorded in, and its decimal places.\n\nOpen to anyone signed in: a list of currencies is no secret, and the\nbrowser converts \"8,300.00\" to minor units with it rather than keeping a\ncopy of its own that could disagree.",
+        "operationId": "list_currencies_currencies_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CurrencyRead"
+                  },
+                  "type": "array",
+                  "title": "Response List Currencies Currencies Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/finance/compensation": {
+      "get": {
+        "tags": [
+          "compensation"
+        ],
+        "summary": "List Compensation",
+        "description": "Everybody active and what they are paid today, with totals per currency\nand pay schedule over everybody the filters match. People with nothing in\neffect come last, and are counted in `missing`.",
+        "operationId": "list_compensation_finance_compensation_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search name or username",
+              "title": "Q"
+            },
+            "description": "Search name or username"
+          },
+          {
+            "name": "department_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Department Id"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Currency"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only people currently paid in this currency",
+              "title": "Currency"
+            },
+            "description": "Only people currently paid in this currency"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompensationPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/compensation/{username}": {
+      "get": {
+        "tags": [
+          "compensation"
+        ],
+        "summary": "Get Compensation History",
+        "description": "Every record somebody has, latest effective first, each marked\nscheduled, current, past or corrected.",
+        "operationId": "get_compensation_history_finance_compensation__username__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Username"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompensationHistory"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "compensation"
+        ],
+        "summary": "Record Compensation",
+        "description": "Record a decision about somebody's pay. A raise or a correction is a\nnew record; nothing is edited or deleted.",
+        "operationId": "record_compensation_finance_compensation__username__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "username",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Username"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompensationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompensationRecordRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/payroll/runs": {
+      "get": {
+        "tags": [
+          "payroll"
+        ],
+        "summary": "List Payroll Runs",
+        "description": "Every run, the newest period first, with its totals per currency.",
+        "operationId": "list_payroll_runs_finance_payroll_runs_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "payroll"
+        ],
+        "summary": "Create Payroll Run",
+        "description": "Generate a draft run for one period on one pay schedule. Refused when\nanother run on that schedule covers any of the same days.",
+        "operationId": "create_payroll_run_finance_payroll_runs_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayrollRunCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/payroll/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "payroll"
+        ],
+        "summary": "Get Payroll Run",
+        "description": "A run and its lines: live while it is a draft, as approved after.",
+        "operationId": "get_payroll_run_finance_payroll_runs__run_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "payroll"
+        ],
+        "summary": "Delete Payroll Run",
+        "description": "Throw away a draft. An approved run is a record, and stays.",
+        "operationId": "delete_payroll_run_finance_payroll_runs__run_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/payroll/runs/{run_id}/lines/{user_id}/adjustment": {
+      "put": {
+        "tags": [
+          "payroll"
+        ],
+        "summary": "Set Payroll Adjustment",
+        "description": "A one-off amount on somebody's line, in its currency, with a note.",
+        "operationId": "set_payroll_adjustment_finance_payroll_runs__run_id__lines__user_id__adjustment_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayrollAdjustment"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "payroll"
+        ],
+        "summary": "Clear Payroll Adjustment",
+        "operationId": "clear_payroll_adjustment_finance_payroll_runs__run_id__lines__user_id__adjustment_delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/payroll/runs/{run_id}/approve": {
+      "post": {
+        "tags": [
+          "payroll"
+        ],
+        "summary": "Approve Payroll Run",
+        "description": "Freeze the run: every line written with its amount, currency, record\nand department, so nothing recorded later can change what it paid.",
+        "operationId": "approve_payroll_run_finance_payroll_runs__run_id__approve_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/payroll/runs/{run_id}/paid": {
+      "post": {
+        "tags": [
+          "payroll"
+        ],
+        "summary": "Mark Payroll Run Paid",
+        "operationId": "mark_payroll_run_paid_finance_payroll_runs__run_id__paid_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/payroll/runs/{run_id}/export": {
+      "get": {
+        "tags": [
+          "payroll"
+        ],
+        "summary": "Export Payroll Run",
+        "description": "The approved run as CSV -- name, amount, currency and the period --\nshaped for a bank template or a payroll bureau. Missing lines are not in\nit: there is nothing to pay them.",
+        "operationId": "export_payroll_run_finance_payroll_runs__run_id__export_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/csv": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/expenses": {
+      "get": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "List My Expenses",
+        "description": "Your own claims, the latest spent first. Nobody else's, whoever asks:\nan expense says where somebody was and what they bought.",
+        "operationId": "list_my_expenses_expenses_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpensePage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Submit Expense",
+        "description": "Claim money you spent for work. The receipt is attached next, with\nPUT /expenses/{id}/receipt.",
+        "operationId": "submit_expense_expenses_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/expenses/{expense_id}": {
+      "patch": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Update Expense",
+        "description": "Change a claim that is still waiting. A decided one is a record.",
+        "operationId": "update_expense_expenses__expense_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Expense Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Withdraw Expense",
+        "description": "Withdraw a claim that is still waiting, receipt and all.",
+        "operationId": "withdraw_expense_expenses__expense_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Expense Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/expenses/{expense_id}/receipt": {
+      "put": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Attach Receipt",
+        "description": "Attach the receipt, or replace it: an image or a PDF, checked the way\nticket attachments are.",
+        "operationId": "attach_receipt_expenses__expense_id__receipt_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Expense Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_attach_receipt_expenses__expense_id__receipt_put"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Remove Receipt",
+        "operationId": "remove_receipt_expenses__expense_id__receipt_delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Expense Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Download My Receipt",
+        "operationId": "download_my_receipt_expenses__expense_id__receipt_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Expense Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/expenses": {
+      "get": {
+        "tags": [
+          "expense-claims"
+        ],
+        "summary": "List Expense Claims",
+        "description": "Every claim, the latest spent first, with how many are in each state.",
+        "operationId": "list_expense_claims_finance_expenses_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpenseState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "name": "submitter_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Submitter Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/expenses/{expense_id}": {
+      "get": {
+        "tags": [
+          "expense-claims"
+        ],
+        "summary": "Get Expense Claim",
+        "operationId": "get_expense_claim_finance_expenses__expense_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Expense Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/expenses/{expense_id}/receipt": {
+      "get": {
+        "tags": [
+          "expense-claims"
+        ],
+        "summary": "Download Claim Receipt",
+        "operationId": "download_claim_receipt_finance_expenses__expense_id__receipt_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Expense Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/expenses/{expense_id}/approve": {
+      "post": {
+        "tags": [
+          "expense-claims"
+        ],
+        "summary": "Approve Expense",
+        "description": "Approve a waiting claim. Refused for your own: another finance admin\ndecides it.",
+        "operationId": "approve_expense_finance_expenses__expense_id__approve_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Expense Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/expenses/{expense_id}/refuse": {
+      "post": {
+        "tags": [
+          "expense-claims"
+        ],
+        "summary": "Refuse Expense",
+        "description": "Refuse a waiting claim, saying why. The submitter sees the reason.",
+        "operationId": "refuse_expense_finance_expenses__expense_id__refuse_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Expense Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseRefusal"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/reimbursements/awaiting": {
+      "get": {
+        "tags": [
+          "reimbursements"
+        ],
+        "summary": "List Awaiting Reimbursement",
+        "description": "Every approved claim not paid back yet, the longest waiting first.\nThose already in a draft batch or on a draft run say where.",
+        "operationId": "list_awaiting_reimbursement_finance_reimbursements_awaiting_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ClaimRead"
+                  },
+                  "type": "array",
+                  "title": "Response List Awaiting Reimbursement Finance Reimbursements Awaiting Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/finance/reimbursements/carry": {
+      "post": {
+        "tags": [
+          "reimbursements"
+        ],
+        "summary": "Carry On Payroll Run",
+        "description": "Pay approved claims back with a draft payroll run, each person's as a\nline of its own beside their pay.",
+        "operationId": "carry_on_payroll_run_finance_reimbursements_carry_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReimbursementCarry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/finance/reimbursements/expenses/{expense_id}/settlement": {
+      "delete": {
+        "tags": [
+          "reimbursements"
+        ],
+        "summary": "Release Expense",
+        "description": "Take a claim back out of a draft batch or off a draft run.",
+        "operationId": "release_expense_finance_reimbursements_expenses__expense_id__settlement_delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Expense Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/reimbursements/batches": {
+      "get": {
+        "tags": [
+          "reimbursements"
+        ],
+        "summary": "List Reimbursement Batches",
+        "operationId": "list_reimbursement_batches_finance_reimbursements_batches_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReimbursementBatchPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "reimbursements"
+        ],
+        "summary": "Create Reimbursement Batch",
+        "description": "Gather approved claims, none already going out, into a draft batch.",
+        "operationId": "create_reimbursement_batch_finance_reimbursements_batches_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReimbursementBatchCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReimbursementBatchRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/reimbursements/batches/{batch_id}": {
+      "get": {
+        "tags": [
+          "reimbursements"
+        ],
+        "summary": "Get Reimbursement Batch",
+        "operationId": "get_reimbursement_batch_finance_reimbursements_batches__batch_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReimbursementBatchRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "reimbursements"
+        ],
+        "summary": "Delete Reimbursement Batch",
+        "description": "Throw a draft batch away; its claims go back to awaiting.",
+        "operationId": "delete_reimbursement_batch_finance_reimbursements_batches__batch_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/reimbursements/batches/{batch_id}/approve": {
+      "post": {
+        "tags": [
+          "reimbursements"
+        ],
+        "summary": "Approve Reimbursement Batch",
+        "operationId": "approve_reimbursement_batch_finance_reimbursements_batches__batch_id__approve_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReimbursementBatchRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/reimbursements/batches/{batch_id}/paid": {
+      "post": {
+        "tags": [
+          "reimbursements"
+        ],
+        "summary": "Mark Reimbursement Batch Paid",
+        "description": "Say the money went out: every claim in the batch is paid back now.",
+        "operationId": "mark_reimbursement_batch_paid_finance_reimbursements_batches__batch_id__paid_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReimbursementBatchRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/reimbursements/batches/{batch_id}/export": {
+      "get": {
+        "tags": [
+          "reimbursements"
+        ],
+        "summary": "Export Reimbursement Batch",
+        "description": "The approved batch in the payroll CSV's shape: one row per person per\ncurrency, over the days the claims were spent.",
+        "operationId": "export_reimbursement_batch_finance_reimbursements_batches__batch_id__export_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/csv": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/budgets": {
+      "get": {
+        "tags": [
+          "budgets"
+        ],
+        "summary": "Get Budget Overview",
+        "description": "Every department with a budget for exactly this period, or spend in\nit, per currency, beside what it actually spent -- and Unattributed.",
+        "operationId": "get_budget_overview_finance_budgets_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "The period's first day",
+              "title": "Start"
+            },
+            "description": "The period's first day"
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "The period's last day",
+              "title": "End"
+            },
+            "description": "The period's last day"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetOverview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "budgets"
+        ],
+        "summary": "Create Budget",
+        "description": "One per department, period and currency (409 budget_exists).",
+        "operationId": "create_budget_finance_budgets_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/budgets/actuals": {
+      "get": {
+        "tags": [
+          "budgets"
+        ],
+        "summary": "Get Actual Breakdown",
+        "description": "Where one actual comes from: each run's approved lines, and each\nbatch or run of claims paid back.",
+        "operationId": "get_actual_breakdown_finance_budgets_actuals_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "End"
+            }
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Currency"
+            }
+          },
+          {
+            "name": "department_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Leave it out for Unattributed",
+              "title": "Department Id"
+            },
+            "description": "Leave it out for Unattributed"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActualBreakdown"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/budgets/{budget_id}": {
+      "patch": {
+        "tags": [
+          "budgets"
+        ],
+        "summary": "Update Budget",
+        "operationId": "update_budget_finance_budgets__budget_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "budget_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Budget Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BudgetUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BudgetRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "budgets"
+        ],
+        "summary": "Delete Budget",
+        "operationId": "delete_budget_finance_budgets__budget_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "budget_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Budget Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/finance/reports/payroll": {
+      "get": {
+        "tags": [
+          "finance-reports"
+        ],
+        "summary": "Get Payroll Report",
+        "description": "Approved payroll cost per currency, and the people it paid, by month.\n\nSummed from the lines approval froze, so nothing recorded since can\nredraw a month. Begins with the first approved run and says so in\n`begins_on`; a month whose run is still a draft is empty, never\nprojected. Spend by department is GET /finance/budgets.",
+        "operationId": "get_payroll_report_finance_reports_payroll_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 120,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "How many months, ending with the latest; leave it out for all",
+              "title": "Months"
+            },
+            "description": "How many months, ending with the latest; leave it out for all"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollReport"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -7039,6 +9926,125 @@
   },
   "components": {
     "schemas": {
+      "ActualBreakdown": {
+        "properties": {
+          "department": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartmentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "total_minor": {
+            "type": "integer",
+            "title": "Total Minor"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ActualSource"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "period_start",
+          "period_end",
+          "total_minor",
+          "sources"
+        ],
+        "title": "ActualBreakdown",
+        "description": "The rows one actual is the sum of (#134)."
+      },
+      "ActualSource": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ActualSourceKind"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "period_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Start"
+          },
+          "period_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period End"
+          },
+          "pay_schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaySchedule"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "rows",
+          "amount_minor"
+        ],
+        "title": "ActualSource"
+      },
+      "ActualSourceKind": {
+        "type": "string",
+        "enum": [
+          "payroll_run",
+          "reimbursement_batch",
+          "reimbursed_on_run"
+        ],
+        "title": "ActualSourceKind",
+        "description": "Where part of an actual comes from."
+      },
       "AdminPasswordReset": {
         "properties": {
           "new_password": {
@@ -7052,6 +10058,15 @@
           "new_password"
         ],
         "title": "AdminPasswordReset"
+      },
+      "AdminRole": {
+        "type": "string",
+        "enum": [
+          "site_admin",
+          "finance_admin"
+        ],
+        "title": "AdminRole",
+        "description": "The instance-wide roles the user directory filters by (#130)."
       },
       "AdminUserRead": {
         "properties": {
@@ -7083,6 +10098,10 @@
             "type": "boolean",
             "title": "Is Site Admin"
           },
+          "is_finance_admin": {
+            "type": "boolean",
+            "title": "Is Finance Admin"
+          },
           "has_password": {
             "type": "boolean",
             "title": "Has Password"
@@ -7091,6 +10110,60 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "started_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started On"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartmentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manager": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "last_login_at": {
             "anyOf": [
@@ -7107,6 +10180,32 @@
           "team_count": {
             "type": "integer",
             "title": "Team Count"
+          },
+          "report_count": {
+            "type": "integer",
+            "title": "Report Count"
+          },
+          "finance_admin_since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finance Admin Since"
+          },
+          "finance_admin_granted_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -7118,9 +10217,11 @@
           "avatar_color",
           "is_active",
           "is_site_admin",
+          "is_finance_admin",
           "has_password",
           "created_at",
-          "team_count"
+          "team_count",
+          "report_count"
         ],
         "title": "AdminUserRead",
         "description": "A row in the site admin's user directory."
@@ -7149,6 +10250,17 @@
             ],
             "title": "Is Site Admin"
           },
+          "is_finance_admin": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Finance Admin"
+          },
           "full_name": {
             "anyOf": [
               {
@@ -7159,6 +10271,40 @@
               }
             ],
             "title": "Full Name"
+          },
+          "started_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started On"
+          },
+          "department_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Department Id"
+          },
+          "manager_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manager Id"
           }
         },
         "type": "object",
@@ -7697,6 +10843,70 @@
         "title": "AutomationTrigger",
         "description": "What makes an automation rule look at a ticket.\n\nEight, and not extensible by a team. Every one of them is something\nSoftTrack already writes down as it happens, which is what keeps the\nengine to \"read the event, read the rules, apply them\" instead of a\nscheduler with a clock of its own. There is deliberately no \"every\nMonday\": a rule that fires while nobody is doing anything is a rule\nnobody remembers exists when it surprises them.\n\nThe last three arrive from a connected repository rather than from\nsomebody using the tracker. They are triggers rather than a settings pair\nof their own -- \"which status means in review\", \"which means shipped\" --\nbecause that pair is a second engine for \"when X happens, change the\nticket\", and this one already exists, already has conditions, and already\nwrites down what it did."
       },
+      "BatchLine": {
+        "properties": {
+          "person": {
+            "$ref": "#/components/schemas/FinancePerson"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          },
+          "claims": {
+            "type": "integer",
+            "title": "Claims"
+          }
+        },
+        "type": "object",
+        "required": [
+          "person",
+          "currency",
+          "amount_minor",
+          "claims"
+        ],
+        "title": "BatchLine",
+        "description": "One person in one currency: what the batch pays them back."
+      },
+      "BatchTotal": {
+        "properties": {
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          },
+          "claims": {
+            "type": "integer",
+            "title": "Claims"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "amount_minor",
+          "claims"
+        ],
+        "title": "BatchTotal"
+      },
+      "Body_attach_receipt_expenses__expense_id__receipt_put": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "A photo or PDF of the receipt."
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_attach_receipt_expenses__expense_id__receipt_put"
+      },
       "Body_import_jira_teams__team_id__import_jira_post": {
         "properties": {
           "file": {
@@ -7792,6 +11002,206 @@
         ],
         "title": "Body_upload_attachment_tickets__ticket_id__attachments_post"
       },
+      "BudgetCreate": {
+        "properties": {
+          "department_id": {
+            "type": "integer",
+            "title": "Department Id"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          }
+        },
+        "type": "object",
+        "required": [
+          "department_id",
+          "period_start",
+          "period_end",
+          "amount_minor",
+          "currency"
+        ],
+        "title": "BudgetCreate"
+      },
+      "BudgetOverview": {
+        "properties": {
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BudgetRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period_start",
+          "period_end",
+          "rows"
+        ],
+        "title": "BudgetOverview"
+      },
+      "BudgetRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "department": {
+            "$ref": "#/components/schemas/DepartmentRef"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "department",
+          "period_start",
+          "period_end",
+          "amount_minor",
+          "currency",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "BudgetRead"
+      },
+      "BudgetRow": {
+        "properties": {
+          "department": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartmentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BudgetRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "actual_minor": {
+            "type": "integer",
+            "title": "Actual Minor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "actual_minor"
+        ],
+        "title": "BudgetRow",
+        "description": "One department in one currency over a period: meant, and spent."
+      },
+      "BudgetUpdate": {
+        "properties": {
+          "period_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Start"
+          },
+          "period_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period End"
+          },
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000000000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          }
+        },
+        "type": "object",
+        "title": "BudgetUpdate",
+        "description": "Leaving a field out leaves it alone."
+      },
       "Burndown": {
         "properties": {
           "sprint_id": {
@@ -7876,6 +11286,194 @@
           "ideal_remaining"
         ],
         "title": "BurndownPoint"
+      },
+      "ClaimCounts": {
+        "properties": {
+          "submitted": {
+            "type": "integer",
+            "title": "Submitted"
+          },
+          "approved": {
+            "type": "integer",
+            "title": "Approved"
+          },
+          "refused": {
+            "type": "integer",
+            "title": "Refused"
+          }
+        },
+        "type": "object",
+        "required": [
+          "submitted",
+          "approved",
+          "refused"
+        ],
+        "title": "ClaimCounts",
+        "description": "How many claims wait in each state, for the queue's tabs."
+      },
+      "ClaimPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ClaimCounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "counts"
+        ],
+        "title": "ClaimPage"
+      },
+      "ClaimRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "incurred_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Incurred On"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ExpenseState"
+          },
+          "receipt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "refusal_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refusal Reason"
+          },
+          "settlement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Settlement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reimbursed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursed At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "submitter": {
+            "$ref": "#/components/schemas/FinancePerson"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartmentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "amount_minor",
+          "currency",
+          "incurred_on",
+          "description",
+          "state",
+          "created_at",
+          "updated_at",
+          "submitter"
+        ],
+        "title": "ClaimRead",
+        "description": "An expense claim as finance sees it: whose, and where it belongs."
       },
       "CodeLinkKind": {
         "type": "string",
@@ -8101,6 +11699,301 @@
         "title": "CommentUpdate",
         "description": "A new body for a comment (#93). The body is the only thing that changes:\nits files stay as they were posted, and removing one is done on the file."
       },
+      "CompensationCreate": {
+        "properties": {
+          "amount_minor": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "pay_schedule": {
+            "$ref": "#/components/schemas/PaySchedule"
+          },
+          "effective_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Effective On"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CompensationKind"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "corrects_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrects Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount_minor",
+          "currency",
+          "pay_schedule",
+          "effective_on",
+          "kind"
+        ],
+        "title": "CompensationCreate",
+        "description": "A new record. There is no update: a change is another record."
+      },
+      "CompensationHistory": {
+        "properties": {
+          "person": {
+            "$ref": "#/components/schemas/FinancePerson"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/CompensationRecordRead"
+            },
+            "type": "array",
+            "title": "Records"
+          }
+        },
+        "type": "object",
+        "required": [
+          "person",
+          "records"
+        ],
+        "title": "CompensationHistory"
+      },
+      "CompensationKind": {
+        "type": "string",
+        "enum": [
+          "hire",
+          "raise",
+          "correction",
+          "other"
+        ],
+        "title": "CompensationKind",
+        "description": "What decision a compensation record is (#131).\n\n`raise_` because `raise` is a keyword; the value, which is what the API\nand the database hold, is \"raise\". A correction names the record it\ncorrects, and nothing else does."
+      },
+      "CompensationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CompensationRow"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/CompensationTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "missing": {
+            "type": "integer",
+            "title": "Missing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "totals",
+          "missing"
+        ],
+        "title": "CompensationPage"
+      },
+      "CompensationRecordRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "pay_schedule": {
+            "$ref": "#/components/schemas/PaySchedule"
+          },
+          "effective_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Effective On"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CompensationKind"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "corrects_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrects Id"
+          },
+          "corrected_by_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected By Id"
+          },
+          "standing": {
+            "$ref": "#/components/schemas/CompensationStanding"
+          },
+          "recorded_by": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "amount_minor",
+          "currency",
+          "pay_schedule",
+          "effective_on",
+          "kind",
+          "standing",
+          "recorded_by",
+          "created_at"
+        ],
+        "title": "CompensationRecordRead"
+      },
+      "CompensationRow": {
+        "properties": {
+          "person": {
+            "$ref": "#/components/schemas/FinancePerson"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompensationRecordRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "change_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Percent"
+          },
+          "scheduled": {
+            "items": {
+              "$ref": "#/components/schemas/CompensationRecordRead"
+            },
+            "type": "array",
+            "title": "Scheduled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "person",
+          "scheduled"
+        ],
+        "title": "CompensationRow",
+        "description": "One person on the compensation list."
+      },
+      "CompensationStanding": {
+        "type": "string",
+        "enum": [
+          "scheduled",
+          "current",
+          "past",
+          "corrected"
+        ],
+        "title": "CompensationStanding",
+        "description": "Where a record stands on the day it is read."
+      },
+      "CompensationTotal": {
+        "properties": {
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "pay_schedule": {
+            "$ref": "#/components/schemas/PaySchedule"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          },
+          "people": {
+            "type": "integer",
+            "title": "People"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "pay_schedule",
+          "amount_minor",
+          "people"
+        ],
+        "title": "CompensationTotal",
+        "description": "Current pay summed for one currency on one schedule. Never across\neither: there is no rate to add euros to pounds, or a month to a\nfortnight."
+      },
       "ConnectedIdentity": {
         "properties": {
           "provider": {
@@ -8214,6 +12107,393 @@
         ],
         "title": "CumulativeFlow"
       },
+      "Currency": {
+        "type": "string",
+        "enum": [
+          "AED",
+          "ARS",
+          "AUD",
+          "BDT",
+          "BGN",
+          "BHD",
+          "BRL",
+          "CAD",
+          "CHF",
+          "CLP",
+          "CNY",
+          "COP",
+          "CZK",
+          "DKK",
+          "EGP",
+          "EUR",
+          "GBP",
+          "GHS",
+          "HKD",
+          "HUF",
+          "IDR",
+          "ILS",
+          "INR",
+          "ISK",
+          "JOD",
+          "JPY",
+          "KES",
+          "KRW",
+          "KWD",
+          "LKR",
+          "MAD",
+          "MXN",
+          "MYR",
+          "NGN",
+          "NOK",
+          "NZD",
+          "OMR",
+          "PEN",
+          "PHP",
+          "PKR",
+          "PLN",
+          "QAR",
+          "RON",
+          "RSD",
+          "SAR",
+          "SEK",
+          "SGD",
+          "THB",
+          "TND",
+          "TRY",
+          "TWD",
+          "UAH",
+          "USD",
+          "UYU",
+          "VND",
+          "ZAR"
+        ],
+        "title": "Currency",
+        "description": "The ISO 4217 currencies an amount can be recorded in.\n\nA closed list rather than any three letters, so a typo is refused instead\nof becoming a currency of its own that every subtotal then carries.\nAdding one is a line here and one in MINOR_UNITS; the column is plain\ntext, so it needs no migration."
+      },
+      "CurrencyRead": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "minor_units": {
+            "type": "integer",
+            "title": "Minor Units"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "minor_units"
+        ],
+        "title": "CurrencyRead",
+        "description": "A currency amounts can be recorded in, and its decimal places."
+      },
+      "CustomFieldCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,39}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CustomFieldKind"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/CustomFieldOptionWrite"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Options",
+            "default": []
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": false
+          },
+          "applies_to": {
+            "items": {
+              "$ref": "#/components/schemas/TicketType"
+            },
+            "type": "array",
+            "title": "Applies To",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind"
+        ],
+        "title": "CustomFieldCreate"
+      },
+      "CustomFieldKind": {
+        "type": "string",
+        "enum": [
+          "text",
+          "number",
+          "select",
+          "multi_select",
+          "user",
+          "date",
+          "checkbox",
+          "url"
+        ],
+        "title": "CustomFieldKind",
+        "description": "What a team's own field holds (#117).\n\nDeliberately few. `user` is the one that motivated the feature -- a QA\nassignee or a reviewer, who is neither the assignee nor a string -- and\nthe rest are what a label cannot type-check. Formulas, rollups and\nanything computed are out: a field is a value somebody sets."
+      },
+      "CustomFieldOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "CustomFieldOption",
+        "description": "One choice a `select` or `multi_select` field offers.\n\n`id` is what a ticket's value stores. It is made from the option's first\nname and kept when the option is renamed, so renaming \"prod\" to\n\"Production\" does not change any ticket."
+      },
+      "CustomFieldOptionWrite": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CustomFieldOptionWrite",
+        "description": "An option as an admin sends it. An existing option keeps its `id`; a\nnew one leaves it out and is given one."
+      },
+      "CustomFieldOrder": {
+        "properties": {
+          "field_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Field Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field_ids"
+        ],
+        "title": "CustomFieldOrder",
+        "description": "Every field that is not archived, in the order tickets should show them.\n\nAll at once, like `StatusOrder`. Archived fields keep their place, so\nrestoring one puts it back where it was."
+      },
+      "CustomFieldRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "team_id": {
+            "type": "integer",
+            "title": "Team Id"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CustomFieldKind"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/CustomFieldOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "applies_to": {
+            "items": {
+              "$ref": "#/components/schemas/TicketType"
+            },
+            "type": "array",
+            "title": "Applies To"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "team_id",
+          "key",
+          "name",
+          "kind",
+          "options",
+          "required",
+          "applies_to",
+          "position",
+          "created_at"
+        ],
+        "title": "CustomFieldRead"
+      },
+      "CustomFieldRef": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CustomFieldKind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "key",
+          "name",
+          "kind"
+        ],
+        "title": "CustomFieldRef",
+        "description": "Which field a history row is about, as it is named now."
+      },
+      "CustomFieldUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CustomFieldOptionWrite"
+                },
+                "type": "array",
+                "maxItems": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          },
+          "required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required"
+          },
+          "applies_to": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TicketType"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applies To"
+          },
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived"
+          }
+        },
+        "type": "object",
+        "title": "CustomFieldUpdate",
+        "description": "What an admin may change. Not the key and not the kind: both are what\nthe values already written mean."
+      },
       "DefaultViewUpdate": {
         "properties": {
           "view_id": {
@@ -8231,6 +12511,138 @@
         "type": "object",
         "title": "DefaultViewUpdate",
         "description": "Null clears the default rather than setting one."
+      },
+      "DepartmentCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "DepartmentCreate"
+      },
+      "DepartmentDelete": {
+        "properties": {
+          "move_to_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Move To Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "move_to_id"
+        ],
+        "title": "DepartmentDelete",
+        "description": "Where the people in a department go when it is deleted.\n\nRequired and nullable: another department's id, or null for none. There\nis no default, so a client has to say which -- moving somebody out of\ntheir department is not a decision to make on the admin's behalf, the\nsame way deleting a status asks where its tickets go. Only needed when\nsomebody is in it; an empty department takes no body at all."
+      },
+      "DepartmentRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "member_count": {
+            "type": "integer",
+            "title": "Member Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "member_count"
+        ],
+        "title": "DepartmentRead"
+      },
+      "DepartmentRef": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "DepartmentRef",
+        "description": "A department as a profile shows it: enough to name it and filter by it."
+      },
+      "DepartmentUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "title": "DepartmentUpdate"
       },
       "DueFilter": {
         "type": "string",
@@ -8280,6 +12692,316 @@
           "by_assignee"
         ],
         "title": "EstimateSummary"
+      },
+      "ExpenseCreate": {
+        "properties": {
+          "amount_minor": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "incurred_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Incurred On"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount_minor",
+          "currency",
+          "incurred_on",
+          "description"
+        ],
+        "title": "ExpenseCreate"
+      },
+      "ExpensePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExpenseRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "ExpensePage"
+      },
+      "ExpenseRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "incurred_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Incurred On"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ExpenseState"
+          },
+          "receipt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReceiptRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "refusal_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refusal Reason"
+          },
+          "settlement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Settlement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reimbursed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursed At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "amount_minor",
+          "currency",
+          "incurred_on",
+          "description",
+          "state",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ExpenseRead",
+        "description": "An expense claim as its submitter sees it (#133).\n\nReturned by /expenses, which only ever answers with the caller's own\nclaims. Who decided and why is on it: a refusal is shown to the person\nit refuses, with its reason."
+      },
+      "ExpenseRefusal": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "ExpenseRefusal"
+      },
+      "ExpenseState": {
+        "type": "string",
+        "enum": [
+          "submitted",
+          "approved",
+          "refused"
+        ],
+        "title": "ExpenseState",
+        "description": "Where an expense claim is (#133).\n\nOne submitter, one decision, by a finance admin -- never by the manager\nchain, which stays information (#124). A refusal carries its reason.\nWhatever happens to an approved claim next -- a batch, a line on a\npayroll run -- is reimbursement's (#137), and reads from these rows."
+      },
+      "ExpenseUpdate": {
+        "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000000000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Currency"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "incurred_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incurred On"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "title": "ExpenseUpdate",
+        "description": "Only while the claim waits. Leaving a field out leaves it alone."
+      },
+      "FinancePerson": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "avatar_color": {
+            "type": "string",
+            "title": "Avatar Color"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartmentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "full_name",
+          "avatar_color",
+          "is_active"
+        ],
+        "title": "FinancePerson",
+        "description": "Who a finance row is about: enough to show them and find them."
       },
       "FlowPoint": {
         "properties": {
@@ -8652,13 +13374,37 @@
         "title": "LinkedTicket",
         "description": "Just enough of the other ticket to render a row and click through."
       },
+      "MonthCost": {
+        "properties": {
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          },
+          "people": {
+            "type": "integer",
+            "title": "People"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "amount_minor",
+          "people"
+        ],
+        "title": "MonthCost",
+        "description": "One currency's approved payroll in one month."
+      },
       "NotificationKind": {
         "type": "string",
         "enum": [
           "assigned",
           "mentioned",
           "commented",
-          "status_changed"
+          "status_changed",
+          "field_assigned"
         ],
         "title": "NotificationKind",
         "description": "Why a notification was raised.\n\nDeliberately about *what happened*, not about how the recipient came to\ncare -- \"someone commented\" reads the same whether you are watching the\nticket because you filed it or because you were assigned it. Which of\nthose is true is not information the inbox has any use for."
@@ -8695,6 +13441,17 @@
               }
             ],
             "title": "Excerpt"
+          },
+          "field_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Name"
           },
           "read": {
             "type": "boolean",
@@ -9511,6 +14268,723 @@
         ],
         "title": "PasswordChange"
       },
+      "PaySchedule": {
+        "type": "string",
+        "enum": [
+          "monthly",
+          "semi_monthly",
+          "bi_weekly"
+        ],
+        "title": "PaySchedule",
+        "description": "How often somebody is paid (#131). A compensation amount is per pay\nperiod of its schedule -- a month, half a month, two weeks -- so a monthly\nand a bi-weekly amount are never added together, and nothing is\nannualised behind anybody's back."
+      },
+      "PayrollAdjustment": {
+        "properties": {
+          "amount_minor": {
+            "type": "integer",
+            "maximum": 1000000000000.0,
+            "minimum": -1000000000000.0,
+            "title": "Amount Minor"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount_minor",
+          "note"
+        ],
+        "title": "PayrollAdjustment",
+        "description": "A one-off amount on one line, in the line's currency, and why."
+      },
+      "PayrollLineRead": {
+        "properties": {
+          "person": {
+            "$ref": "#/components/schemas/FinancePerson"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartmentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "compensation_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compensation Id"
+          },
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Currency"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Minor"
+          },
+          "adjustment_minor": {
+            "type": "integer",
+            "title": "Adjustment Minor"
+          },
+          "adjustment_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjustment Note"
+          },
+          "missing": {
+            "type": "boolean",
+            "title": "Missing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "person",
+          "adjustment_minor",
+          "missing"
+        ],
+        "title": "PayrollLineRead"
+      },
+      "PayrollMonth": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date",
+            "title": "Month"
+          },
+          "runs": {
+            "type": "integer",
+            "title": "Runs"
+          },
+          "draft_runs": {
+            "type": "integer",
+            "title": "Draft Runs"
+          },
+          "headcount": {
+            "type": "integer",
+            "title": "Headcount"
+          },
+          "costs": {
+            "items": {
+              "$ref": "#/components/schemas/MonthCost"
+            },
+            "type": "array",
+            "title": "Costs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "runs",
+          "draft_runs",
+          "headcount",
+          "costs"
+        ],
+        "title": "PayrollMonth",
+        "description": "One calendar month of payroll, as approved (#135)."
+      },
+      "PayrollReimbursementRead": {
+        "properties": {
+          "person": {
+            "$ref": "#/components/schemas/FinancePerson"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          },
+          "claims": {
+            "type": "integer",
+            "title": "Claims"
+          }
+        },
+        "type": "object",
+        "required": [
+          "person",
+          "currency",
+          "amount_minor",
+          "claims"
+        ],
+        "title": "PayrollReimbursementRead",
+        "description": "Approved expense claims paid back on a run (#137), for one person in\none currency: a line of its own, never merged into the wages -- whoever\nreads the export needs to know which part is pay."
+      },
+      "PayrollReport": {
+        "properties": {
+          "begins_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Begins On"
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/PayrollMonth"
+            },
+            "type": "array",
+            "title": "Months"
+          }
+        },
+        "type": "object",
+        "required": [
+          "begins_on",
+          "months"
+        ],
+        "title": "PayrollReport",
+        "description": "Payroll cost and headcount, month by month (#135)."
+      },
+      "PayrollRunCreate": {
+        "properties": {
+          "pay_schedule": {
+            "$ref": "#/components/schemas/PaySchedule"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pay_schedule",
+          "period_start",
+          "period_end"
+        ],
+        "title": "PayrollRunCreate"
+      },
+      "PayrollRunPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PayrollRunSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "PayrollRunPage"
+      },
+      "PayrollRunRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "pay_schedule": {
+            "$ref": "#/components/schemas/PaySchedule"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PayrollRunState"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "paid_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/PayrollTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "line_count": {
+            "type": "integer",
+            "title": "Line Count"
+          },
+          "missing_count": {
+            "type": "integer",
+            "title": "Missing Count"
+          },
+          "reimbursement_totals": {
+            "items": {
+              "$ref": "#/components/schemas/PayrollTotal"
+            },
+            "type": "array",
+            "title": "Reimbursement Totals"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PayrollLineRead"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "reimbursements": {
+            "items": {
+              "$ref": "#/components/schemas/PayrollReimbursementRead"
+            },
+            "type": "array",
+            "title": "Reimbursements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pay_schedule",
+          "period_start",
+          "period_end",
+          "state",
+          "created_by",
+          "created_at",
+          "totals",
+          "line_count",
+          "missing_count",
+          "reimbursement_totals",
+          "lines",
+          "reimbursements"
+        ],
+        "title": "PayrollRunRead"
+      },
+      "PayrollRunState": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "approved",
+          "paid"
+        ],
+        "title": "PayrollRunState",
+        "description": "Where a payroll run is (#132).\n\nSet by a finance admin, never derived, for the reason a sprint's state is\nset: the dates are the plan, the state is what happened. Forward only. A\nmistake found after approval is put right on the next run, which is how\npayroll corrections are made anyway, and an approved run stays what it\nsaid it paid."
+      },
+      "PayrollRunSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "pay_schedule": {
+            "$ref": "#/components/schemas/PaySchedule"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PayrollRunState"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "paid_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/PayrollTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "line_count": {
+            "type": "integer",
+            "title": "Line Count"
+          },
+          "missing_count": {
+            "type": "integer",
+            "title": "Missing Count"
+          },
+          "reimbursement_totals": {
+            "items": {
+              "$ref": "#/components/schemas/PayrollTotal"
+            },
+            "type": "array",
+            "title": "Reimbursement Totals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "pay_schedule",
+          "period_start",
+          "period_end",
+          "state",
+          "created_by",
+          "created_at",
+          "totals",
+          "line_count",
+          "missing_count",
+          "reimbursement_totals"
+        ],
+        "title": "PayrollRunSummary"
+      },
+      "PayrollTotal": {
+        "properties": {
+          "currency": {
+            "$ref": "#/components/schemas/Currency"
+          },
+          "amount_minor": {
+            "type": "integer",
+            "title": "Amount Minor"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "amount_minor",
+          "lines"
+        ],
+        "title": "PayrollTotal",
+        "description": "The lines paid in one currency, summed. Never across currencies."
+      },
+      "PeoplePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PersonRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "manager": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "PeoplePage"
+      },
+      "PersonRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "avatar_color": {
+            "type": "string",
+            "title": "Avatar Color"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "started_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started On"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartmentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manager": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "full_name",
+          "avatar_color",
+          "is_active"
+        ],
+        "title": "PersonRead",
+        "description": "Somebody in the people directory (#125): who they are, where they sit.\n\nWhat anyone signed in may read about anyone. No email address: the\ndirectory is instance-wide, and on an instance open to registration that\nwould hand every address to whoever signs up. A team's member list still\nshows its members' addresses to each other, as it always has."
+      },
+      "PersonRef": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "avatar_color": {
+            "type": "string",
+            "title": "Avatar Color"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "full_name",
+          "avatar_color",
+          "is_active"
+        ],
+        "title": "PersonRef",
+        "description": "Somebody a profile points at: a manager, or one of their reports (#124).\n\nEnough to show them and link to them -- name, handle, avatar and title --\nand whether the account is still active: a deactivated manager is shown\nas one, not hidden, because the people reporting to them still do."
+      },
       "PersonTime": {
         "properties": {
           "user": {
@@ -9527,6 +15001,110 @@
           "minutes"
         ],
         "title": "PersonTime"
+      },
+      "ProfileRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "avatar_color": {
+            "type": "string",
+            "title": "Avatar Color"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "started_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started On"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartmentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manager": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "direct_reports": {
+            "items": {
+              "$ref": "#/components/schemas/PersonRef"
+            },
+            "type": "array",
+            "title": "Direct Reports"
+          },
+          "shared_teams": {
+            "items": {
+              "$ref": "#/components/schemas/SharedTeam"
+            },
+            "type": "array",
+            "title": "Shared Teams"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "full_name",
+          "avatar_color",
+          "is_active",
+          "direct_reports",
+          "shared_teams"
+        ],
+        "title": "ProfileRead",
+        "description": "Somebody's profile page (#126): their directory row, and around it the\npeople they connect to and the teams they share with whoever is looking.\n\nResolves for a deactivated account too, marked by `is_active`: tickets\nand comments keep pointing at a person, and the page should not pretend\notherwise."
       },
       "ProjectBurnup": {
         "properties": {
@@ -9901,6 +15479,339 @@
         ],
         "title": "ReactionSummary",
         "description": "One emoji on one comment, and who gave it (#96).\n\nSummarised rather than one row per reaction: a chip needs the count, the\nnames for its tooltip, and whether it is yours to take back -- never the\nindividual rows."
+      },
+      "ReceiptRead": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "is_image": {
+            "type": "boolean",
+            "title": "Is Image"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "content_type",
+          "size_bytes",
+          "is_image",
+          "url"
+        ],
+        "title": "ReceiptRead"
+      },
+      "ReimbursementBatchCreate": {
+        "properties": {
+          "expense_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Expense Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expense_ids"
+        ],
+        "title": "ReimbursementBatchCreate"
+      },
+      "ReimbursementBatchPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReimbursementBatchSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "ReimbursementBatchPage"
+      },
+      "ReimbursementBatchRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PayrollRunState"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "paid_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/BatchTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "people_count": {
+            "type": "integer",
+            "title": "People Count"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/BatchLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimRead"
+            },
+            "type": "array",
+            "title": "Claims"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "state",
+          "created_by",
+          "created_at",
+          "totals",
+          "claim_count",
+          "people_count",
+          "lines",
+          "claims"
+        ],
+        "title": "ReimbursementBatchRead"
+      },
+      "ReimbursementBatchSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PayrollRunState"
+          },
+          "created_by": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "paid_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/BatchTotal"
+            },
+            "type": "array",
+            "title": "Totals"
+          },
+          "claim_count": {
+            "type": "integer",
+            "title": "Claim Count"
+          },
+          "people_count": {
+            "type": "integer",
+            "title": "People Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "state",
+          "created_by",
+          "created_at",
+          "totals",
+          "claim_count",
+          "people_count"
+        ],
+        "title": "ReimbursementBatchSummary"
+      },
+      "ReimbursementCarry": {
+        "properties": {
+          "run_id": {
+            "type": "integer",
+            "title": "Run Id"
+          },
+          "expense_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Expense Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "expense_ids"
+        ],
+        "title": "ReimbursementCarry",
+        "description": "Approved claims to pay back with a draft payroll run's pay."
+      },
+      "ReportLoad": {
+        "properties": {
+          "person": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "open_count": {
+            "type": "integer",
+            "title": "Open Count"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "person",
+          "open_count",
+          "points"
+        ],
+        "title": "ReportLoad",
+        "description": "A direct report's open work, in the same teams-you-share terms."
       },
       "RepositoryCreate": {
         "properties": {
@@ -10528,6 +16439,117 @@
           "snippet"
         ],
         "title": "SearchHit"
+      },
+      "Settlement": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/SettlementKind"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PayrollRunState"
+          },
+          "period_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Start"
+          },
+          "period_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period End"
+          },
+          "pay_schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaySchedule"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "paid_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "state"
+        ],
+        "title": "Settlement",
+        "description": "The batch or payroll run an approved claim goes out on (#137)."
+      },
+      "SettlementKind": {
+        "type": "string",
+        "enum": [
+          "batch",
+          "payroll_run"
+        ],
+        "title": "SettlementKind",
+        "description": "How an approved claim is paid back (#137)."
+      },
+      "SharedTeam": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "key",
+          "name"
+        ],
+        "title": "SharedTeam",
+        "description": "A team on somebody's profile (#126), which the viewer is on too."
       },
       "SortDirection": {
         "type": "string",
@@ -11346,6 +17368,37 @@
             "type": "array",
             "title": "Label Ids",
             "default": []
+          },
+          "custom_fields": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Custom Fields",
+            "description": "Values for the team's own fields, by key. On an update only the keys given change, and null clears one.",
+            "default": {}
           }
         },
         "type": "object",
@@ -11364,7 +17417,8 @@
           "assignee",
           "priority",
           "due_date",
-          "team"
+          "team",
+          "custom_field"
         ],
         "title": "TicketEventField",
         "description": "Which field a TicketEvent records a change to."
@@ -11377,6 +17431,16 @@
           },
           "field": {
             "$ref": "#/components/schemas/TicketEventField"
+          },
+          "custom_field": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustomFieldRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "old_value": {
             "anyOf": [
@@ -11445,7 +17509,7 @@
           "created_at"
         ],
         "title": "TicketEventRead",
-        "description": "One change to one field of a ticket, as the Activity feed shows it (#81).\n\n`old_value`/`new_value` are what the history stores: a status *category*\n(see `_status_category` in history.py), a priority, an estimate, or a\nrow id. For the id fields -- assignee, sprint, project -- the labels carry\nthe name it has now, or null when that row has since been deleted."
+        "description": "One change to one field of a ticket, as the Activity feed shows it (#81).\n\n`old_value`/`new_value` are what the history stores: a status *category*\n(see `_status_category` in history.py), a priority, an estimate, or a\nrow id. For the id fields -- assignee, sprint, project -- the labels carry\nthe name it has now, or null when that row has since been deleted.\n\nA change to one of the team's own fields (#117) is `custom_field`, with\nthe field in `custom_field` and its values as the field stores them: a\nuser id, an option id, a JSON list of option ids, `true`, a date or the\ntext. Labels carry a person's or an option's name as it is now."
       },
       "TicketGrouping": {
         "type": "string",
@@ -11757,6 +17821,35 @@
             "title": "Labels",
             "default": []
           },
+          "custom_fields": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "$ref": "#/components/schemas/UserPublic"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Custom Fields"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -11784,6 +17877,7 @@
           "child_count",
           "completed_child_count",
           "creator",
+          "custom_fields",
           "created_at",
           "updated_at"
         ],
@@ -12114,6 +18208,43 @@
               }
             ],
             "title": "Label Ids"
+          },
+          "custom_fields": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object",
+                "description": "Values for the team's own fields, by key. On an update only the keys given change, and null clears one."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Fields"
           }
         },
         "type": "object",
@@ -12223,6 +18354,13 @@
             ],
             "title": "Assignee Cleared"
           },
+          "fields_cleared": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fields Cleared"
+          },
           "parent_detached": {
             "anyOf": [
               {
@@ -12249,6 +18387,7 @@
           "status",
           "labels_kept",
           "labels_dropped",
+          "fields_cleared",
           "sub_tickets"
         ],
         "title": "TransferPlan",
@@ -12412,6 +18551,10 @@
             "type": "boolean",
             "title": "Is Site Admin"
           },
+          "is_finance_admin": {
+            "type": "boolean",
+            "title": "Is Finance Admin"
+          },
           "has_password": {
             "type": "boolean",
             "title": "Has Password"
@@ -12420,6 +18563,60 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "started_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started On"
+          },
+          "department": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DepartmentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manager": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -12431,6 +18628,7 @@
           "avatar_color",
           "is_active",
           "is_site_admin",
+          "is_finance_admin",
           "has_password",
           "created_at"
         ],
@@ -12521,6 +18719,30 @@
               }
             ],
             "title": "Email"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
           },
           "current_password": {
             "anyOf": [
@@ -12880,6 +19102,146 @@
         "title": "WebhookReceipt",
         "description": "What the webhook endpoint answers with.\n\nMore than an empty 200 on purpose. Both providers show the response body\nin their delivery log, and that log is the entire debugging surface for\nwhoever is setting this up -- \"accepted, matched nothing\" is the answer to\nthe question they are about to ask, and it is much cheaper to read there\nthan to work out from a ticket page that did not change."
       },
+      "WorkloadRead": {
+        "properties": {
+          "open_count": {
+            "type": "integer",
+            "title": "Open Count"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/WorkloadTeam"
+            },
+            "type": "array",
+            "title": "Teams"
+          },
+          "reports": {
+            "items": {
+              "$ref": "#/components/schemas/ReportLoad"
+            },
+            "type": "array",
+            "title": "Reports"
+          }
+        },
+        "type": "object",
+        "required": [
+          "open_count",
+          "points",
+          "teams",
+          "reports"
+        ],
+        "title": "WorkloadRead",
+        "description": "Everything open assigned to one person, in the teams the viewer is on.\n\nTenancy is inside the query: a ticket is here only if it is assigned to\nthem *and* on a team the viewer belongs to. A site admin gets no wider\nview -- this is for planning, not auditing."
+      },
+      "WorkloadTeam": {
+        "properties": {
+          "team": {
+            "$ref": "#/components/schemas/SharedTeam"
+          },
+          "open_count": {
+            "type": "integer",
+            "title": "Open Count"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "tickets": {
+            "items": {
+              "$ref": "#/components/schemas/WorkloadTicket"
+            },
+            "type": "array",
+            "title": "Tickets"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team",
+          "open_count",
+          "points",
+          "tickets",
+          "offset",
+          "limit"
+        ],
+        "title": "WorkloadTeam",
+        "description": "One team's share of somebody's open work, and a page of it."
+      },
+      "WorkloadTicket": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "team_key": {
+            "type": "string",
+            "title": "Team Key"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusRead"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TicketPriority"
+          },
+          "estimate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimate"
+          },
+          "sprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sprint"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "team_key",
+          "number",
+          "identifier",
+          "title",
+          "status",
+          "priority"
+        ],
+        "title": "WorkloadTicket",
+        "description": "One open ticket on somebody's plate (#127), as a planner scans it."
+      },
       "WorklogCreate": {
         "properties": {
           "minutes": {
@@ -13029,6 +19391,7 @@
           "not_team_admin",
           "team_read_only",
           "not_site_admin",
+          "not_finance_admin",
           "invite_only",
           "team_not_found",
           "ticket_not_found",
@@ -13043,11 +19406,20 @@
           "attachment_not_found",
           "comment_not_found",
           "template_not_found",
+          "custom_field_not_found",
           "worklog_not_found",
           "notification_not_found",
           "repository_not_found",
           "invite_not_found",
           "user_not_found",
+          "department_not_found",
+          "compensation_not_found",
+          "payroll_run_not_found",
+          "payroll_line_not_found",
+          "expense_not_found",
+          "receipt_not_found",
+          "reimbursement_batch_not_found",
+          "budget_not_found",
           "member_not_found",
           "not_on_this_team",
           "user_not_on_team",
@@ -13056,7 +19428,10 @@
           "team_key_taken",
           "status_name_taken",
           "template_name_taken",
+          "custom_field_key_taken",
+          "custom_field_name_taken",
           "rule_name_taken",
+          "department_name_taken",
           "already_member",
           "link_exists",
           "link_contradicts",
@@ -13079,6 +19454,11 @@
           "labels_conflict",
           "status_order_incomplete",
           "template_order_incomplete",
+          "custom_field_order_incomplete",
+          "custom_field_required",
+          "custom_field_archived",
+          "custom_field_not_applicable",
+          "custom_field_not_archived",
           "status_move_to_same",
           "not_your_worklog",
           "not_your_comment",
@@ -13088,8 +19468,33 @@
           "view_private_default",
           "rank_neighbour_is_self",
           "password_required_to_disconnect",
+          "department_not_empty",
+          "department_move_to_same",
+          "manager_is_self",
+          "manager_cycle",
+          "manager_deactivated",
+          "compensation_already_corrected",
+          "payroll_run_overlaps",
+          "payroll_run_not_draft",
+          "payroll_run_not_approved",
+          "payroll_line_missing_pay",
+          "payroll_adjustment_too_large",
+          "expense_decided",
+          "expense_own_claim",
+          "expense_in_future",
+          "expense_not_approved",
+          "expense_already_settled",
+          "expense_settlement_locked",
+          "reimbursement_not_on_run",
+          "reimbursement_batch_not_draft",
+          "reimbursement_batch_not_approved",
+          "budget_exists",
+          "budget_period_invalid",
+          "department_has_finance_history",
           "name_required",
           "body_required",
+          "custom_field_invalid_value",
+          "custom_field_options_invalid",
           "invalid_colour",
           "username_invalid",
           "current_password_incorrect",

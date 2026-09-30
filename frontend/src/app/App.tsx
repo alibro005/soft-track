@@ -9,8 +9,23 @@ import InvitePage from '@/auth/InvitePage'
 import LoginPage from '@/auth/LoginPage'
 import OAuthCallbackPage from '@/auth/OAuthCallbackPage'
 import NewTeamPage from '@/team/NewTeamPage'
+import BudgetsPage from '@/finance/BudgetsPage'
+import CompensationHistoryPage from '@/finance/CompensationHistoryPage'
+import CompensationPage from '@/finance/CompensationPage'
+import ExpenseClaimsPage from '@/finance/ExpenseClaimsPage'
+import MyExpensesPage from '@/finance/MyExpensesPage'
+import PayrollRunPage from '@/finance/PayrollRunPage'
+import PayrollRunsPage from '@/finance/PayrollRunsPage'
+import ReimbursementBatchPage from '@/finance/ReimbursementBatchPage'
+import ReimbursementsPage from '@/finance/ReimbursementsPage'
+import FinanceReportsPage from '@/finance/ReportsPage'
+import { RequireFinanceAdmin } from '@/finance/RequireFinanceAdmin'
+import DirectoryPage from '@/people/DirectoryPage'
+import PeopleLayout from '@/people/PeopleLayout'
+import ProfilePage from '@/people/ProfilePage'
 import RegisterPage from '@/auth/RegisterPage'
 import ResetPasswordPage from '@/auth/ResetPasswordPage'
+import AdminDepartmentsPage from '@/settings/AdminDepartmentsPage'
 import AdminUsersPage from '@/settings/AdminUsersPage'
 import NotificationSettings from '@/settings/NotificationSettings'
 import ProfileSettings from '@/settings/ProfileSettings'
@@ -20,6 +35,7 @@ import TeamAutomationSettings from '@/settings/TeamAutomationSettings'
 import TeamGeneralSettings from '@/settings/TeamGeneralSettings'
 import TeamIntegrationSettings from '@/settings/TeamIntegrationSettings'
 import TeamMembersSettings from '@/settings/TeamMembersSettings'
+import TeamFieldSettings from '@/settings/TeamFieldSettings'
 import TeamStatusSettings from '@/settings/TeamStatusSettings'
 import TeamTemplateSettings from '@/settings/TeamTemplateSettings'
 import TeamWebhookSettings from '@/settings/TeamWebhookSettings'
@@ -69,6 +85,7 @@ export default function App() {
             <Route path="profile" element={<ProfileSettings />} />
             <Route path="security" element={<SecuritySettings />} />
             <Route path="notifications" element={<NotificationSettings />} />
+            <Route path="expenses" element={<MyExpensesPage />} />
             <Route
               path="teams/:teamKey"
               element={<Navigate to="members" replace />}
@@ -76,6 +93,7 @@ export default function App() {
             <Route path="teams/:teamKey/members" element={<TeamMembersSettings />} />
             <Route path="teams/:teamKey/general" element={<TeamGeneralSettings />} />
             <Route path="teams/:teamKey/statuses" element={<TeamStatusSettings />} />
+            <Route path="teams/:teamKey/fields" element={<TeamFieldSettings />} />
             <Route path="teams/:teamKey/templates" element={<TeamTemplateSettings />} />
             <Route
               path="teams/:teamKey/automation"
@@ -88,7 +106,40 @@ export default function App() {
             <Route path="teams/:teamKey/webhooks" element={<TeamWebhookSettings />} />
             <Route element={<RequireSiteAdmin />}>
               <Route path="admin/users" element={<AdminUsersPage />} />
+              <Route path="admin/departments" element={<AdminDepartmentsPage />} />
             </Route>
+            {/* Finance (#130): anyone without the flag who follows a link
+                here is told who can grant it, whatever the page. */}
+            <Route path="finance" element={<RequireFinanceAdmin />}>
+              <Route index element={<Navigate to="compensation" replace />} />
+              <Route path="compensation" element={<CompensationPage />} />
+              <Route path="compensation/:username" element={<CompensationHistoryPage />} />
+              <Route path="payroll" element={<PayrollRunsPage />} />
+              <Route path="payroll/:runId" element={<PayrollRunPage />} />
+              <Route path="expenses" element={<ExpenseClaimsPage />} />
+              <Route path="reimbursements" element={<ReimbursementsPage />} />
+              <Route path="budgets" element={<BudgetsPage />} />
+              <Route path="reports" element={<FinanceReportsPage />} />
+              <Route
+                path="reimbursements/batches/:batchId"
+                element={<ReimbursementBatchPage />}
+              />
+              <Route path="*" element={<Navigate to="/settings/finance" replace />} />
+            </Route>
+          </Route>
+
+          {/* People (#125): everyone on the instance. Case-sensitive, unlike
+              every other route: React Router otherwise matches without
+              regard to case, and /PEOPLE is where a team keyed PEOPLE lives
+              -- the app always links a team by its upper-case key. The API
+              answers on /users, keeping the two disjoint (see
+              docs/deployment.md). */}
+          <Route path="/people" caseSensitive element={<PeopleLayout />}>
+            <Route index element={<DirectoryPage />} />
+            {/* A profile behind every name (#126). */}
+            <Route path=":username" element={<ProfilePage />} />
+            {/* Everything open on their plate (#127). */}
+            <Route path=":username/workload" element={<ProfilePage tab="workload" />} />
           </Route>
 
           {/* The same element for all three, so the board survives a ticket

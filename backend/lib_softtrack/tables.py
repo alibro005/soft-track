@@ -10,8 +10,9 @@ import enum
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Index, UniqueConstraint
-from sqlmodel import SQLModel, Field
+from sqlalchemy import JSON, CheckConstraint, Column, Enum, Index, UniqueConstraint
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlmodel import SQLModel, Field, Relationship
 
 from lib_utils.password import is_usable_password
 
@@ -103,6 +104,29 @@ class TicketType(str, enum.Enum):
     story = "story"
 
 
+class CustomFieldKind(str, enum.Enum):
+    """What a team's own field holds (#117).
+
+    Deliberately few. `user` is the one that motivated the feature -- a QA
+    assignee or a reviewer, who is neither the assignee nor a string -- and
+    the rest are what a label cannot type-check. Formulas, rollups and
+    anything computed are out: a field is a value somebody sets.
+    """
+
+    text = "text"
+    number = "number"
+    select = "select"
+    multi_select = "multi_select"
+    user = "user"
+    date = "date"
+    checkbox = "checkbox"
+    url = "url"
+
+
+#: The kinds that choose from the field's own list of options.
+OPTION_KINDS = (CustomFieldKind.select, CustomFieldKind.multi_select)
+
+
 class TicketSort(str, enum.Enum):
     """What the ticket list can be ordered by (#88)."""
 
@@ -188,6 +212,10 @@ class TicketEventField(str, enum.Enum):
     #: The key rather than the team id because the key is what changed from
     #: anybody's point of view, and what the Activity feed has to show.
     team = "team"
+    #: One of the team's own fields (#117). Which one is the event's
+    #: `custom_field_id`; one value for all of them, because the set of
+    #: fields is the team's and cannot be an enum.
+    custom_field = "custom_field"
 
 
 class DueFilter(str, enum.Enum):
@@ -254,6 +282,10 @@ class NotificationKind(str, enum.Enum):
     mentioned = "mentioned"
     commented = "commented"
     status_changed = "status_changed"
+    #: Named in one of the team's user fields (#117) -- set as a ticket's
+    #: reviewer or QA assignee. Assignment by another name, told the same
+    #: way; `Notification.custom_field_id` says which field.
+    field_assigned = "field_assigned"
 
 
 class AutomationTrigger(str, enum.Enum):
@@ -341,6 +373,60 @@ class PullRequestState(str, enum.Enum):
     closed = "closed"
 
 
+class PaySchedule(str, enum.Enum):
+    """How often somebody is paid (#131). A compensation amount is per pay
+    period of its schedule -- a month, half a month, two weeks -- so a monthly
+    and a bi-weekly amount are never added together, and nothing is
+    annualised behind anybody's back."""
+
+    monthly = "monthly"
+    semi_monthly = "semi_monthly"
+    bi_weekly = "bi_weekly"
+
+
+class PayrollRunState(str, enum.Enum):
+    """Where a payroll run is (#132).
+
+    Set by a finance admin, never derived, for the reason a sprint's state is
+    set: the dates are the plan, the state is what happened. Forward only. A
+    mistake found after approval is put right on the next run, which is how
+    payroll corrections are made anyway, and an approved run stays what it
+    said it paid.
+    """
+
+    draft = "draft"
+    approved = "approved"
+    paid = "paid"
+
+
+class ExpenseState(str, enum.Enum):
+    """Where an expense claim is (#133).
+
+    One submitter, one decision, by a finance admin -- never by the manager
+    chain, which stays information (#124). A refusal carries its reason.
+    Whatever happens to an approved claim next -- a batch, a line on a
+    payroll run -- is reimbursement's (#137), and reads from these rows.
+    """
+
+    submitted = "submitted"
+    approved = "approved"
+    refused = "refused"
+
+
+class CompensationKind(str, enum.Enum):
+    """What decision a compensation record is (#131).
+
+    `raise_` because `raise` is a keyword; the value, which is what the API
+    and the database hold, is "raise". A correction names the record it
+    corrects, and nothing else does.
+    """
+
+    hire = "hire"
+    raise_ = "raise"
+    correction = "correction"
+    other = "other"
+
+
 # ---------------------------------------------------------------------------
 # Link tables
 # ---------------------------------------------------------------------------
@@ -361,6 +447,33 @@ class TicketLabelLink(SQLModel, table=True):
 # ---------------------------------------------------------------------------
 # Core tables
 # ---------------------------------------------------------------------------
+
+
+class Department(SQLModel, table=True):
+    """A named group people belong to, defined once by a site admin (#123).
+
+    A row rather than free text on the profile: a department typed by hand is
+    a department spelled four ways, and the people directory filters by it.
+    Renaming one renames it for everybody in it, which is the point of it
+    being a row.
+
+    Flat on purpose -- no parent department, no head, no permissions. Those
+    are org-chart features that can arrive if they earn it; a named list is
+    what the directory and its filters need.
+    """
+
+    __table_args__ = (UniqueConstraint("name_key", name="uq_department_name_key"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    #: `name` case-folded, which is what makes two names the same one. Unique,
+    #: so "engineering" cannot join "Engineering" even when two admins create
+    #: them at once. A column rather than an index on `lower(name)`: SQLite's
+    #: lower() folds ASCII only, and SQLAlchemy cannot reflect an expression
+    #: index there, so every later migration touching `user` would warn.
+    name_key: str
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class User(SQLModel, table=True):
@@ -393,6 +506,69 @@ class User(SQLModel, table=True):
     token_version: int = Field(default=0)
     last_login_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=utcnow)
+
+    # --- What the organisation knows about them (#122) ---------------------
+    # Every one nullable: an instance that never fills them in looks exactly
+    # as it did before they existed. Title and location are the person's own
+    # to edit; the start date is set by a site admin, because it is a fact
+    # the organisation owns rather than one the person does.
+
+    #: Free text, in their own words. A fixed list of titles is an HR
+    #: system's job; the directory only has to show it.
+    job_title: Optional[str] = None
+    #: Where they work from: a city, an office, "Remote". Free text for the
+    #: same reason.
+    location: Optional[str] = None
+    #: A date rather than a datetime, like a ticket's due date: a start is a
+    #: day, and a timestamp would move it across midnight for anybody in
+    #: another timezone.
+    started_on: Optional[date] = None
+    #: Set by a site admin (#123). Deleting a department with people in it
+    #: asks where they go, so this never dangles and never silently empties.
+    department_id: Optional[int] = Field(
+        default=None, foreign_key="department.id", index=True
+    )
+    department: Optional[Department] = Relationship()
+    #: Who they report to (#124), set by a site admin. Information, not
+    #: authority: nothing is permitted or approved because of it. Never a
+    #: loop -- `lib_identity/managers.py` walks the chain before it is set --
+    #: and left in place when the manager is deactivated, where the admin
+    #: directory lists it rather than letting it go quietly stale.
+    manager_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
+    manager: Optional["User"] = Relationship(
+        sa_relationship_kwargs={
+            "remote_side": "User.id",
+            # Named, because the finance grant below is a second link from
+            # a user to a user and the join would otherwise be ambiguous.
+            "foreign_keys": "User.manager_id",
+        }
+    )
+
+    # --- Finance access (#130) ---------------------------------------------
+
+    #: Whether they can see money at all: pay, payroll runs, everybody's
+    #: expense claims, budgets and the finance reports. Every endpoint under
+    #: /finance checks it (`lib_finance/access.py`). Granted by a site admin
+    #: and separate from being one: the site admin is the IT role, and
+    #: resetting somebody's password says nothing about reading their salary.
+    #: Neither flag includes the other.
+    is_finance_admin: bool = Field(default=False)
+    #: When the access they hold now was granted, and by whom. Both cleared
+    #: when it is revoked; the history is the log's (see lib_finance/access.py).
+    finance_admin_since: Optional[datetime] = None
+    finance_admin_granted_by_id: Optional[int] = Field(
+        default=None, foreign_key="user.id"
+    )
+    #: Read-only: the grant is written through the id. A site admin may
+    #: grant it to themselves, and a row pointing at itself through a
+    #: writable relationship is a cycle SQLAlchemy refuses to flush.
+    finance_admin_granted_by: Optional["User"] = Relationship(
+        sa_relationship_kwargs={
+            "remote_side": "User.id",
+            "foreign_keys": "User.finance_admin_granted_by_id",
+            "viewonly": True,
+        }
+    )
 
     @property
     def has_password(self) -> bool:
@@ -765,6 +941,12 @@ class TicketEvent(SQLModel, table=True):
     #: soon after creation" also describes a real change made quickly, such
     #: as an automation assigning a new ticket.
     opening: bool = Field(default=False)
+    #: Which of the team's own fields changed, when `field` is `custom_field`
+    #: (#117); null for every built-in field. The values are the field's own
+    #: -- see lib_softtrack/custom_fields.py for how each kind is written.
+    custom_field_id: Optional[int] = Field(
+        default=None, foreign_key="customfield.id", index=True
+    )
 
 
 class Comment(SQLModel, table=True):
@@ -831,6 +1013,79 @@ class TicketTemplate(SQLModel, table=True):
     #: The picker's order, which admins set.
     position: int = 0
     created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+#: JSON everywhere, stored as `jsonb` on Postgres: it has equality and
+#: containment operators, which is what filtering by a field will need, and
+#: plain `json` has neither.
+JSONValue = JSON().with_variant(JSONB(), "postgresql")
+
+
+class CustomField(SQLModel, table=True):
+    """A field a team adds to its own tickets (#117): a reviewer, an environment.
+
+    Team-scoped and never global -- two teams may both have "Reviewer" and
+    mean different people by it. Tickets carry values in CustomFieldValue;
+    this row is the definition the form, the panel and the export read.
+
+    `key` is what the API calls it (`"custom_fields": {"reviewer": 12}`) and
+    never changes once made, so a script written against it keeps working
+    after the name is reworded. `kind` never changes either: a value written
+    as a date means nothing read as a person.
+    """
+
+    __table_args__ = (
+        UniqueConstraint("team_id", "key", name="uq_custom_field_team_key"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    team_id: int = Field(foreign_key="team.id", index=True)
+    key: str
+    name: str
+    kind: CustomFieldKind
+    #: For `select` and `multi_select`: `[{"id": "production", "name":
+    #: "Production"}, ...]`, in the order offered. An option's id is made from
+    #: its first name and kept through renames, so values -- which store the
+    #: id -- survive the option being reworded. Empty for every other kind.
+    options: list = Field(
+        default_factory=list, sa_column=Column(JSONValue, nullable=False)
+    )
+    #: Enforced when a ticket is filed, with an error that names the field.
+    required: bool = Field(default=False)
+    #: The ticket types it shows on (#89); empty is all of them. The
+    #: difference between Environment on every task and Environment on bugs.
+    applies_to: list = Field(
+        default_factory=list, sa_column=Column(JSONValue, nullable=False)
+    )
+    #: Order in the ticket panel, the form and the export, low to high.
+    position: int = 0
+    #: Hidden from the form and the panel's editors; values stay readable.
+    #: Deleting is a separate step, and only from here -- it destroys history.
+    archived_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class CustomFieldValue(SQLModel, table=True):
+    """One ticket's value for one of its team's fields (#117).
+
+    One JSON `value` rather than a nullable column per kind: the kind on the
+    field says how to read it, the service validates it on the way in, and a
+    ninth kind is not a migration. The cost is that filtering has to reach
+    into JSON -- `jsonb` on Postgres, where that is cheap to index. A field
+    with no value has no row: clearing one deletes it.
+    """
+
+    __table_args__ = (
+        UniqueConstraint("ticket_id", "field_id", name="uq_custom_field_value"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ticket_id: int = Field(foreign_key="ticket.id", index=True)
+    field_id: int = Field(foreign_key="customfield.id", index=True)
+    #: A string, number, bool, option id, list of option ids, ISO date or
+    #: user id, by the field's kind.
+    value: object = Field(sa_column=Column(JSONValue, nullable=False))
     updated_at: datetime = Field(default_factory=utcnow)
 
 
@@ -928,6 +1183,11 @@ class Notification(SQLModel, table=True):
     #: user behind it, and "Jira import assigned this to you" is still worth
     #: saying.
     actor_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    #: The field somebody was named in, for `field_assigned` (#117). Read
+    #: through, like the ticket's title, so a renamed field reads as it is now.
+    custom_field_id: Optional[int] = Field(
+        default=None, foreign_key="customfield.id", index=True
+    )
     read_at: Optional[datetime] = Field(default=None, index=True)
     #: When this row went out in a digest. Set *before* the mail is sent and
     #: only on rows the update actually claimed, so two processes running the
@@ -1254,3 +1514,338 @@ class CodeLink(SQLModel, table=True):
     author_name: Optional[str] = None
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Finance (#130-#137). Readable by finance admins only; see lib_finance.
+# ---------------------------------------------------------------------------
+
+
+class Compensation(SQLModel, table=True):
+    """One decision about somebody's pay (#131): this much, from this day.
+
+    A salary is not a value but a series of decisions -- hired at X, raised
+    to Y in March -- and a column loses the series the first time it is
+    updated, and with it the answer to "what was this person paid in Q1",
+    which is the question payroll runs and finance reports ask. So pay is
+    rows, and the rows are append-only: a raise is a new row, and a
+    correction is a new row naming the one it corrects. Nothing here is ever
+    updated or deleted.
+
+    What somebody is paid on a given day is the latest row in effect by then
+    that no correction replaces -- see `lib_finance/compensation.py`.
+    """
+
+    __table_args__ = (
+        # Corrected at most once. A second correction corrects the first, so
+        # the chain only ever reads one way.
+        UniqueConstraint("corrects_id", name="uq_compensation_corrects_id"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    #: Gross agreed pay for one period of `pay_schedule`, in the currency's
+    #: minor unit (lib_finance/money.py). An integer, never a float: floating
+    #: point and money is a bug that pays somebody a tenth of a cent forever.
+    amount_minor: int
+    #: An ISO 4217 code. Per record, and never converted into another.
+    currency: str
+    pay_schedule: PaySchedule
+    #: The day it takes effect. A date rather than a timestamp, like a start
+    #: date. Still in the future, it is scheduled.
+    effective_on: date
+    #: Stored by value, so the database says "raise" too.
+    kind: CompensationKind = Field(
+        sa_column=Column(
+            Enum(
+                CompensationKind,
+                name="compensationkind",
+                values_callable=lambda kinds: [kind.value for kind in kinds],
+            ),
+            nullable=False,
+        )
+    )
+    note: Optional[str] = None
+    #: The record this one replaces, when it is a correction.
+    corrects_id: Optional[int] = Field(default=None, foreign_key="compensation.id")
+    recorded_by_id: int = Field(foreign_key="user.id")
+    created_at: datetime = Field(default_factory=utcnow)
+
+    # Read-only, and named: two links to `user` make the join ambiguous, and
+    # the rows are written through the ids.
+    user: Optional[User] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "Compensation.user_id",
+            "viewonly": True,
+        }
+    )
+    recorded_by: Optional[User] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "Compensation.recorded_by_id",
+            "viewonly": True,
+        }
+    )
+
+
+class PayrollRun(SQLModel, table=True):
+    """One pay period on one pay schedule, made concrete (#132).
+
+    A monthly run and a semi-monthly run for September are two runs: a
+    period's lines only make sense for the people paid on that schedule. Runs
+    on one schedule never overlap, so nobody is paid twice for the same days
+    -- the service refuses an overlap, and the constraint catches two runs
+    for the same start at once.
+
+    SoftTrack keeps the record and the export. It computes no tax, models no
+    withholding, files nothing and pays nobody: the CSV feeds whatever does.
+    """
+
+    __table_args__ = (
+        UniqueConstraint(
+            "pay_schedule", "period_start", name="uq_payrollrun_schedule_start"
+        ),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    pay_schedule: PaySchedule
+    #: Both days included. Dates, like compensation's effective dates.
+    period_start: date
+    period_end: date
+    state: PayrollRunState = Field(default=PayrollRunState.draft, index=True)
+    created_by_id: int = Field(foreign_key="user.id")
+    created_at: datetime = Field(default_factory=utcnow)
+    approved_by_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    approved_at: Optional[datetime] = None
+    paid_by_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    paid_at: Optional[datetime] = None
+
+    # Read-only, and named: three links to `user`.
+    created_by: Optional[User] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "PayrollRun.created_by_id",
+            "viewonly": True,
+        }
+    )
+    approved_by: Optional[User] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "PayrollRun.approved_by_id",
+            "viewonly": True,
+        }
+    )
+    paid_by: Optional[User] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "PayrollRun.paid_by_id",
+            "viewonly": True,
+        }
+    )
+
+
+class PayrollLine(SQLModel, table=True):
+    """One person on one payroll run (#132).
+
+    While the run is a draft, a row exists only to hold an adjustment; the
+    rest of a draft line is read live -- who is active, and what they are
+    paid on the period's last day -- so a pay recorded or an account opened
+    after the run was generated is on it. Approval writes a row for every
+    line and copies onto it what it pays: the amount, the currency, the
+    record they came from, and the department the person was in. From then on
+    the row is the record, whatever later happens to the pay or the person --
+    a raise recorded next week cannot change what an approved run says was
+    paid, and a reorg in June cannot move January's cost (#134).
+    """
+
+    __table_args__ = (
+        UniqueConstraint("run_id", "user_id", name="uq_payrollline_run_user"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: int = Field(foreign_key="payrollrun.id", index=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    #: Copied at approval. All three null on a line whose person had no pay
+    #: in effect: missing, which the run lists rather than leaving out.
+    compensation_id: Optional[int] = Field(default=None, foreign_key="compensation.id")
+    amount_minor: Optional[int] = None
+    currency: Optional[str] = None
+    #: A one-off amount on top, positive or negative, in the line's currency,
+    #: and why. Only a draft takes one, and never without its note.
+    adjustment_minor: int = Field(default=0)
+    adjustment_note: Optional[str] = None
+    #: Where the cost belongs, copied at approval (#134). Null for somebody
+    #: in no department, who lands in Unattributed rather than nowhere.
+    department_id: Optional[int] = Field(default=None, foreign_key="department.id")
+
+    user: Optional[User] = Relationship(
+        sa_relationship_kwargs={"foreign_keys": "PayrollLine.user_id", "viewonly": True}
+    )
+    department: Optional[Department] = Relationship(
+        sa_relationship_kwargs={"viewonly": True}
+    )
+
+
+class ReimbursementBatch(SQLModel, table=True):
+    """Approved expense claims paid back together (#137).
+
+    The expense counterpart of a payroll run: gathered by a finance admin,
+    moved draft -> approved -> paid, and exported as the same kind of CSV.
+    Its lines are the claims in it, summed per person per currency; their
+    amounts were frozen when each claim was approved, so there is nothing to
+    copy here.
+    """
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    #: The payroll run's states, set the same way and for the same reason.
+    state: PayrollRunState = Field(default=PayrollRunState.draft, index=True)
+    created_by_id: int = Field(foreign_key="user.id")
+    created_at: datetime = Field(default_factory=utcnow)
+    approved_by_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    approved_at: Optional[datetime] = None
+    paid_by_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    paid_at: Optional[datetime] = None
+
+    created_by: Optional[User] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "ReimbursementBatch.created_by_id",
+            "viewonly": True,
+        }
+    )
+    approved_by: Optional[User] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "ReimbursementBatch.approved_by_id",
+            "viewonly": True,
+        }
+    )
+    paid_by: Optional[User] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "ReimbursementBatch.paid_by_id",
+            "viewonly": True,
+        }
+    )
+
+
+class Expense(SQLModel, table=True):
+    """One expense claim (#133): money somebody spent for work, wanting it back.
+
+    The submitter can change or withdraw it while it waits. The decision
+    freezes it: an approved or refused claim is a record, and a correction is
+    a new claim. Approval copies the submitter's department onto it, like a
+    payroll line, so a reorg cannot move what a department spent (#134).
+
+    The receipt goes through the attachment pipeline -- the same name
+    handling, derived types, byte checks and storage -- but lives on the claim
+    rather than as an Attachment row, which always belongs to a ticket and is
+    guarded by the ticket's team. A receipt is guarded by who may see money.
+
+    An approved claim is paid back exactly once (#137): in a reimbursement
+    batch, or on a payroll run, and never both. That rule is the row's own
+    -- two check constraints -- so paying a claim twice cannot be recorded
+    at all, rather than being something the service remembers to prevent.
+    """
+
+    __table_args__ = (
+        CheckConstraint(
+            "reimbursement_batch_id IS NULL OR payroll_run_id IS NULL",
+            name="ck_expense_settled_once",
+        ),
+        CheckConstraint(
+            "state = 'approved' OR "
+            "(reimbursement_batch_id IS NULL AND payroll_run_id IS NULL)",
+            name="ck_expense_settles_approved",
+        ),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    submitter_id: int = Field(foreign_key="user.id", index=True)
+    #: In the currency's minor unit, like compensation, and never converted.
+    amount_minor: int
+    currency: str
+    #: The day the money was spent.
+    incurred_on: date
+    description: str
+    state: ExpenseState = Field(default=ExpenseState.submitted, index=True)
+    receipt_filename: Optional[str] = None
+    receipt_content_type: Optional[str] = None
+    receipt_size_bytes: Optional[int] = None
+    receipt_storage_key: Optional[str] = None
+    decided_by_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    decided_at: Optional[datetime] = None
+    #: Required on a refusal, and shown to the submitter.
+    refusal_reason: Optional[str] = None
+    #: Copied at approval (#134); null for somebody in no department.
+    department_id: Optional[int] = Field(default=None, foreign_key="department.id")
+    #: How it goes out (#137): one of these, or neither while it waits.
+    reimbursement_batch_id: Optional[int] = Field(
+        default=None, foreign_key="reimbursementbatch.id", index=True
+    )
+    payroll_run_id: Optional[int] = Field(
+        default=None, foreign_key="payrollrun.id", index=True
+    )
+    #: When the batch or run it went out in was marked paid: the moment the
+    #: submitter's view says "Reimbursed".
+    reimbursed_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+    reimbursement_batch: Optional[ReimbursementBatch] = Relationship(
+        sa_relationship_kwargs={"viewonly": True}
+    )
+    payroll_run: Optional[PayrollRun] = Relationship(
+        sa_relationship_kwargs={"viewonly": True}
+    )
+    submitter: Optional[User] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "Expense.submitter_id",
+            "viewonly": True,
+        }
+    )
+    decided_by: Optional[User] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "Expense.decided_by_id",
+            "viewonly": True,
+        }
+    )
+    department: Optional[Department] = Relationship(
+        sa_relationship_kwargs={"viewonly": True}
+    )
+
+
+class Budget(SQLModel, table=True):
+    """What a department meant to spend in a period, in one currency (#134).
+
+    A period is a start and an end, so months, quarters and a fiscal year
+    from April are all just rows. One per department, period and currency: a
+    department paying in three currencies has three. The actuals it is
+    compared with are never entered -- they are summed from approved payroll
+    lines and reimbursed expenses, which is what makes the comparison honest.
+    No forecasting, encumbrances or ledger: a budget is a number to compare
+    against.
+    """
+
+    __table_args__ = (
+        UniqueConstraint(
+            "department_id",
+            "currency",
+            "period_start",
+            "period_end",
+            name="uq_budget_department_currency_period",
+        ),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    department_id: int = Field(foreign_key="department.id", index=True)
+    period_start: date
+    period_end: date
+    amount_minor: int
+    currency: str
+    created_by_id: int = Field(foreign_key="user.id")
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+    department: Optional[Department] = Relationship(
+        sa_relationship_kwargs={"viewonly": True}
+    )
+    created_by: Optional[User] = Relationship(
+        sa_relationship_kwargs={
+            "foreign_keys": "Budget.created_by_id",
+            "viewonly": True,
+        }
+    )

@@ -46,6 +46,9 @@ class ErrorCode(str, enum.Enum):
     #: A guest of the team (#104): may look, may not change anything.
     team_read_only = "team_read_only"
     not_site_admin = "not_site_admin"
+    #: Money is for finance admins only (#130), whatever else the account may
+    #: do -- a site admin included.
+    not_finance_admin = "not_finance_admin"
     #: Registration is invite-only on this instance.
     invite_only = "invite_only"
 
@@ -64,11 +67,26 @@ class ErrorCode(str, enum.Enum):
     attachment_not_found = "attachment_not_found"
     comment_not_found = "comment_not_found"
     template_not_found = "template_not_found"
+    #: A team's own field (#117) that does not exist -- by id in a path, or
+    #: by key in a ticket's `custom_fields`.
+    custom_field_not_found = "custom_field_not_found"
     worklog_not_found = "worklog_not_found"
     notification_not_found = "notification_not_found"
     repository_not_found = "repository_not_found"
     invite_not_found = "invite_not_found"
     user_not_found = "user_not_found"
+    department_not_found = "department_not_found"
+    #: A compensation record that does not exist, or is somebody else's (#131).
+    compensation_not_found = "compensation_not_found"
+    payroll_run_not_found = "payroll_run_not_found"
+    #: Adjusting somebody who is not on the run (#132).
+    payroll_line_not_found = "payroll_line_not_found"
+    #: A claim that does not exist, or -- to its submitter's API -- is
+    #: somebody else's (#133).
+    expense_not_found = "expense_not_found"
+    receipt_not_found = "receipt_not_found"
+    reimbursement_batch_not_found = "reimbursement_batch_not_found"
+    budget_not_found = "budget_not_found"
     #: The person is not a member of the team the request is about.
     member_not_found = "member_not_found"
     #: A status, label, project or sprint id that belongs to another team.
@@ -82,7 +100,12 @@ class ErrorCode(str, enum.Enum):
     team_key_taken = "team_key_taken"
     status_name_taken = "status_name_taken"
     template_name_taken = "template_name_taken"
+    #: Field keys and names are unique on a team, whatever the case (#117).
+    custom_field_key_taken = "custom_field_key_taken"
+    custom_field_name_taken = "custom_field_name_taken"
     rule_name_taken = "rule_name_taken"
+    #: Department names are unique whatever the case (#123).
+    department_name_taken = "department_name_taken"
     already_member = "already_member"
     link_exists = "link_exists"
     link_contradicts = "link_contradicts"
@@ -111,6 +134,16 @@ class ErrorCode(str, enum.Enum):
     labels_conflict = "labels_conflict"
     status_order_incomplete = "status_order_incomplete"
     template_order_incomplete = "template_order_incomplete"
+    custom_field_order_incomplete = "custom_field_order_incomplete"
+    #: A required field left empty on a new ticket, or cleared on one (#117).
+    #: The detail names the field.
+    custom_field_required = "custom_field_required"
+    #: An archived field's values are read-only.
+    custom_field_archived = "custom_field_archived"
+    #: A field bound to other ticket types than this ticket's.
+    custom_field_not_applicable = "custom_field_not_applicable"
+    #: Deleting destroys history, so a field is archived first.
+    custom_field_not_archived = "custom_field_not_archived"
     status_move_to_same = "status_move_to_same"
     #: Only the person who logged time can change or delete the entry (#102).
     not_your_worklog = "not_your_worklog"
@@ -126,11 +159,63 @@ class ErrorCode(str, enum.Enum):
     #: A card cannot be dropped next to itself (#88).
     rank_neighbour_is_self = "rank_neighbour_is_self"
     password_required_to_disconnect = "password_required_to_disconnect"
+    #: Deleting a department with people in it needs to be told where they
+    #: go: another department, or none (#123).
+    department_not_empty = "department_not_empty"
+    department_move_to_same = "department_move_to_same"
+    #: A manager link that would loop: somebody managing themselves, or
+    #: reporting to a person who already reports to them (#124).
+    manager_is_self = "manager_is_self"
+    manager_cycle = "manager_cycle"
+    #: A deactivated account cannot take on new reports.
+    manager_deactivated = "manager_deactivated"
+    #: A compensation record is corrected once; a second correction corrects
+    #: the first (#131).
+    compensation_already_corrected = "compensation_already_corrected"
+    #: Payroll runs on one schedule never cover the same day twice (#132).
+    payroll_run_overlaps = "payroll_run_overlaps"
+    #: Only a draft run changes; approval freezes it.
+    payroll_run_not_draft = "payroll_run_not_draft"
+    #: Paid, or exported, only once approved.
+    payroll_run_not_approved = "payroll_run_not_approved"
+    #: A line with no pay recorded has no currency to adjust in.
+    payroll_line_missing_pay = "payroll_line_missing_pay"
+    #: An adjustment that would take a line below zero.
+    payroll_adjustment_too_large = "payroll_adjustment_too_large"
+    #: A decided claim is a record; a correction is a new claim (#133).
+    expense_decided = "expense_decided"
+    #: Nobody decides their own claim.
+    expense_own_claim = "expense_own_claim"
+    #: A claim is for money already spent.
+    expense_in_future = "expense_in_future"
+    #: Only an approved claim is paid back (#137).
+    expense_not_approved = "expense_not_approved"
+    #: A claim is paid back exactly once: it is already in a batch or on a run.
+    expense_already_settled = "expense_already_settled"
+    #: A claim whose batch or run has been approved stays in it.
+    expense_settlement_locked = "expense_settlement_locked"
+    #: A payroll run carries reimbursements only for the people it pays.
+    reimbursement_not_on_run = "reimbursement_not_on_run"
+    reimbursement_batch_not_draft = "reimbursement_batch_not_draft"
+    reimbursement_batch_not_approved = "reimbursement_batch_not_approved"
+    #: One budget per department, period and currency (#134).
+    budget_exists = "budget_exists"
+    #: A budget's period ends before it starts.
+    budget_period_invalid = "budget_period_invalid"
+    #: A department that approved payroll (and, later, expenses and budgets)
+    #: is attributed to is renamed, not deleted: the record keeps pointing at it.
+    department_has_finance_history = "department_has_finance_history"
 
     # --- what you sent is not usable ------------------------------------------
     name_required = "name_required"
     #: A template (#97) whose text is only whitespace.
     body_required = "body_required"
+    #: A value of the wrong kind for its field, or an option it does not
+    #: offer (#117). The detail says what the field takes.
+    custom_field_invalid_value = "custom_field_invalid_value"
+    #: Options on a kind that has none, none on one that needs them, or two
+    #: with the same name.
+    custom_field_options_invalid = "custom_field_options_invalid"
     invalid_colour = "invalid_colour"
     username_invalid = "username_invalid"
     current_password_incorrect = "current_password_incorrect"

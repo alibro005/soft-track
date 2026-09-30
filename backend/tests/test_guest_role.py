@@ -43,6 +43,58 @@ NOT_TEAM_WRITES = {
     ("DELETE", "/auth/me/identities/{provider}"): "your own account",
     ("PATCH", "/admin/users/{user_id}"): "site admins, not team roles",
     ("POST", "/admin/users/{user_id}/reset-password"): "site admins, not team roles",
+    ("POST", "/departments"): "site admins, not team roles",
+    ("PATCH", "/departments/{department_id}"): "site admins, not team roles",
+    ("DELETE", "/departments/{department_id}"): "site admins, not team roles",
+    # Money (#130-#137): the finance flag decides, not any team role.
+    ("POST", "/finance/compensation/{username}"): "finance admins, not team roles",
+    ("POST", "/finance/payroll/runs"): "finance admins, not team roles",
+    ("DELETE", "/finance/payroll/runs/{run_id}"): "finance admins, not team roles",
+    (
+        "PUT",
+        "/finance/payroll/runs/{run_id}/lines/{user_id}/adjustment",
+    ): "finance admins, not team roles",
+    (
+        "DELETE",
+        "/finance/payroll/runs/{run_id}/lines/{user_id}/adjustment",
+    ): "finance admins, not team roles",
+    (
+        "POST",
+        "/finance/payroll/runs/{run_id}/approve",
+    ): "finance admins, not team roles",
+    ("POST", "/finance/payroll/runs/{run_id}/paid"): "finance admins, not team roles",
+    (
+        "POST",
+        "/finance/expenses/{expense_id}/approve",
+    ): "finance admins, not team roles",
+    ("POST", "/finance/expenses/{expense_id}/refuse"): "finance admins, not team roles",
+    ("POST", "/finance/reimbursements/carry"): "finance admins, not team roles",
+    (
+        "DELETE",
+        "/finance/reimbursements/expenses/{expense_id}/settlement",
+    ): "finance admins, not team roles",
+    ("POST", "/finance/reimbursements/batches"): "finance admins, not team roles",
+    (
+        "DELETE",
+        "/finance/reimbursements/batches/{batch_id}",
+    ): "finance admins, not team roles",
+    (
+        "POST",
+        "/finance/reimbursements/batches/{batch_id}/approve",
+    ): "finance admins, not team roles",
+    (
+        "POST",
+        "/finance/reimbursements/batches/{batch_id}/paid",
+    ): "finance admins, not team roles",
+    ("POST", "/finance/budgets"): "finance admins, not team roles",
+    ("PATCH", "/finance/budgets/{budget_id}"): "finance admins, not team roles",
+    ("DELETE", "/finance/budgets/{budget_id}"): "finance admins, not team roles",
+    # Your own expense claims (#133), which no team has anything to do with.
+    ("POST", "/expenses"): "your own claims",
+    ("PATCH", "/expenses/{expense_id}"): "your own claims",
+    ("DELETE", "/expenses/{expense_id}"): "your own claims",
+    ("PUT", "/expenses/{expense_id}/receipt"): "your own claims",
+    ("DELETE", "/expenses/{expense_id}/receipt"): "your own claims",
     ("POST", "/teams"): "a new team, which its creator admins",
     # The invite link is the authority, and it names the role.
     ("POST", "/invites/{token}/accept"): "the invitation decides the role",
@@ -168,6 +220,9 @@ def world(client, team, guest):
         f"/teams/{team_id}/ticket-templates",
         json={"name": "Bug report", "body": "## Steps"},
     )
+    field = post(
+        f"/teams/{team_id}/custom-fields", json={"name": "Reviewer", "kind": "user"}
+    )
     return {
         "team_id": team_id,
         "ticket_id": ticket["id"],
@@ -184,6 +239,7 @@ def world(client, team, guest):
         "comment_id": comment["id"],
         "emoji": "thumbs_up",
         "template_id": template["id"],
+        "field_id": field["id"],
         "worklog_id": worklog["id"],
         # Somebody else on the team: changing *their* role is the write.
         "user_id": team["user"]["id"],

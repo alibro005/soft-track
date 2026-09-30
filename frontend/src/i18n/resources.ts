@@ -6,12 +6,14 @@ import { calendar } from '@/i18n/en/calendar'
 import { common } from '@/i18n/en/common'
 import { sprints } from '@/i18n/en/sprints'
 import { errors } from '@/i18n/en/errors'
+import { finance } from '@/i18n/en/finance'
 import { imports } from '@/i18n/en/imports'
 import { tickets } from '@/i18n/en/tickets'
 import { keyboard } from '@/i18n/en/keyboard'
 import { landing } from '@/i18n/en/landing'
 import { markdown } from '@/i18n/en/markdown'
 import { notifications } from '@/i18n/en/notifications'
+import { people } from '@/i18n/en/people'
 import { projects } from '@/i18n/en/projects'
 import { reports } from '@/i18n/en/reports'
 import { search } from '@/i18n/en/search'
@@ -39,6 +41,8 @@ export const resources = {
     search,
     keyboard,
     notifications,
+    people,
+    finance,
     calendar,
     attachments,
     markdown,

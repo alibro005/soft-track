@@ -1,10 +1,11 @@
 import { parseServerDate } from '@/api/dates'
 import { AttachmentList } from '@/attachments/AttachmentList'
 import { useAuth } from '@/auth/useAuth'
-import { useTranslation } from '@/i18n'
+import { Trans, userText, useTranslation } from '@/i18n'
 import { formatRelative } from '@/i18n/format'
 import { CommentsSection } from '@/tickets/detail/CommentsSection'
 import { DescriptionEditor } from '@/tickets/detail/DescriptionEditor'
+import { CustomFieldsSection } from '@/tickets/detail/CustomFieldsSection'
 import { DevelopmentSection } from '@/tickets/detail/DevelopmentSection'
 import { TicketLinksSection } from '@/tickets/detail/TicketLinksSection'
 import { TicketProperties } from '@/tickets/detail/TicketProperties'
@@ -15,6 +16,7 @@ import { useTicketEditor } from '@/tickets/detail/useTicketEditor'
 import { PriorityIcon } from '@/tickets/PriorityIcon'
 import { useCanWrite } from '@/team/useCanWrite'
 import { useTeamContext } from '@/team/useTeamContext'
+import { PersonLink } from '@/people/PersonLink'
 import { Avatar } from '@/ui/Avatar'
 
 /**
@@ -102,6 +104,7 @@ export function TicketDetailBody({ ticketId }: { ticketId: number }) {
             onToggleLabel={editor.toggleLabel}
             readOnly={readOnly}
           />
+          <CustomFieldsSection ticket={ticket} patch={editor.patch} readOnly={readOnly} />
           <DevelopmentSection ticketId={ticket.id} />
         </aside>
 
@@ -114,10 +117,23 @@ export function TicketDetailBody({ ticketId }: { ticketId: number }) {
             <PriorityIcon priority={ticket.priority} size={12} />
             <Avatar user={ticket.creator} size={16} decorative />
             <span>
-              {t('panel.createdBy', {
-                name: ticket.creator.full_name,
-                when: formatRelative(parseServerDate(ticket.created_at)),
-              })}
+              <Trans
+                t={t}
+                i18nKey="panel.createdBy"
+                values={{
+                  name: ticket.creator.full_name,
+                  when: formatRelative(parseServerDate(ticket.created_at)),
+                }}
+                components={{
+                  person: (
+                    <PersonLink
+                      person={ticket.creator}
+                      className="hover:text-neutral-600 hover:underline"
+                    />
+                  ),
+                }}
+                {...userText}
+              />
             </span>
           </div>
         </div>

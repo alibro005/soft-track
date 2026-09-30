@@ -6,9 +6,19 @@ from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.middleware.cors import CORSMiddleware
 
+from app_finance.budgets import router as budgets_router
+from app_finance.compensation import router as compensation_router
+from app_finance.currencies import router as currencies_router
+from app_finance.expenses import finance as expense_claims_router
+from app_finance.expenses import router as expenses_router
+from app_finance.payroll import router as payroll_router
+from app_finance.reimbursements import router as reimbursements_router
+from app_finance.reports import router as finance_reports_router
 from app_identity.admin import router as admin_router
+from app_identity.departments import router as departments_router
 from app_identity.identity import router as identity_router
 from app_identity.oauth import router as oauth_router
+from app_identity.people import router as people_router
 from lib_identity.identity import warm_password_hasher
 from lib_softtrack import realtime
 from lib_softtrack.digest import digest_loop
@@ -16,6 +26,7 @@ from lib_softtrack.outbound import webhook_loop
 from app_softtrack.attachments import router as attachments_router
 from app_softtrack.automations import router as automations_router
 from app_softtrack.comments import router as comments_router
+from app_softtrack.custom_fields import router as custom_fields_router
 from app_softtrack.sprints import router as sprints_router
 from app_softtrack.events import router as events_router
 from app_softtrack.imports import router as imports_router
@@ -33,6 +44,7 @@ from app_softtrack.teams import router as teams_router
 from app_softtrack.templates import router as templates_router
 from app_softtrack.webhooks import router as webhooks_router
 from app_softtrack.worklogs import router as worklogs_router
+from app_softtrack.workload import router as workload_router
 from app_softtrack.views import router as views_router
 from lib_utils.errors import ApiError, ApiErrorBody, ErrorCode, api_error_handler
 from web import init_db, settings
@@ -131,6 +143,8 @@ app.add_middleware(
 app.include_router(identity_router)
 app.include_router(oauth_router)
 app.include_router(admin_router)
+app.include_router(departments_router)
+app.include_router(people_router)
 app.include_router(teams_router)
 app.include_router(invites_router)
 app.include_router(projects_router)
@@ -145,13 +159,23 @@ app.include_router(search_router)
 app.include_router(notifications_router)
 app.include_router(views_router)
 app.include_router(templates_router)
+app.include_router(custom_fields_router)
 app.include_router(worklogs_router)
+app.include_router(workload_router)
 app.include_router(events_router)
 app.include_router(statuses_router)
 app.include_router(automations_router)
 app.include_router(integrations_router)
 app.include_router(webhooks_router)
 app.include_router(outbound_router)
+app.include_router(currencies_router)
+app.include_router(compensation_router)
+app.include_router(payroll_router)
+app.include_router(expenses_router)
+app.include_router(expense_claims_router)
+app.include_router(reimbursements_router)
+app.include_router(budgets_router)
+app.include_router(finance_reports_router)
 
 
 @app.get("/health", tags=["health"])
