@@ -79,6 +79,8 @@ const { openTicket } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/tickets/surface', () => ({
+  ticketPath: (ticket: { team_key: string; number: number }) =>
+    `/${ticket.team_key}/ticket/${ticket.number}`,
   useOpenTicket: () => openTicket,
 }))
 

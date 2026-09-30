@@ -1,11 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { type FormEvent, useId, useState } from 'react'
+import { type FormEvent, useId, useState, useRef } from 'react'
 
 import { errorDetail } from '@/api/errors'
 import { useCreateTicketTeamsTeamIdTicketsPost } from '@/api/generated/endpoints/tickets/tickets'
 import { useListTemplatesTeamsTeamIdTicketTemplatesGet } from '@/api/generated/endpoints/templates/templates'
 import { useSearchSearchGet } from '@/api/generated/endpoints/search/search'
-import { useOpenTicket } from '@/tickets/surface'
+import { ticketPath, useOpenTicket } from '@/tickets/surface'
 import { TicketPriority, type TicketType } from '@/api/generated/models'
 import { Trans, userText, useTranslation } from '@/i18n'
 import { formatList } from '@/i18n/format'
@@ -53,6 +53,7 @@ function getSearchPhrase(value: string) {
 export function NewTicketModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation(['tickets', 'common'])
   const dialogRef = useFocusTrap<HTMLDivElement>()
+  const titleInputRef = useRef<HTMLInputElement>(null)
   const titleId = useId()
   const { team, projects, labels, members, sprints, statuses } = useTeamContext()
   const queryClient = useQueryClient()
@@ -237,6 +238,7 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
               autoFocus
               required
               value={title}
+              ref={titleInputRef}
               aria-controls="similar-issues-list"
               aria-expanded={suggestions.length > 0}
               aria-activedescendant={
@@ -315,36 +317,50 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
                 >
                   {suggestions.map((issue, index) => (
                     <li key={issue.id}>
-                      <button
-                        id={`similar-issue-${issue.id}`}
-                        type="button"
-                        role="option"
-                        aria-selected={index === highlightedSuggestion}
-                        onClick={() => openTicket(issue, 'panel')}
-                        className={`w-full px-3 py-2 text-left transition-colors focus:outline-none ${
-                          index === highlightedSuggestion
-                            ? 'bg-brand-500/10'
-                            : 'hover:bg-neutral-900/4'
-                        }`}
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="identifier shrink-0 text-[11px] font-medium text-neutral-400">
-                            {issue.identifier}
-                          </span>
+                      <div className="flex items-center">
+                        <button
+                          id={`similar-issue-${issue.id}`}
+                          type="button"
+                          role="option"
+                          aria-selected={index === highlightedSuggestion}
+                          onClick={() => openTicket(issue, 'panel')}
+                          className={`min-w-0 flex-1 px-3 py-2 text-left transition-colors focus:outline-none ${
+                            index === highlightedSuggestion
+                              ? 'bg-brand-500/10'
+                              : 'hover:bg-neutral-900/4'
+                          }`}
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="identifier shrink-0 text-[11px] font-medium text-neutral-400">
+                              {issue.identifier}
+                            </span>
 
-                          <span className="min-w-0 flex-1 truncate text-xs font-medium text-neutral-800">
-                            {issue.title}
-                          </span>
+                            <span className="min-w-0 flex-1 truncate text-xs font-medium text-neutral-800">
+                              {issue.title}
+                            </span>
 
-                          <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-neutral-400">
-                          <span
-                            className="dot"
-                            style={{ ['--dot' as string]: issue.status.color }}
-                          />
-                            {issue.status.name}
-                          </span>
-                        </div>
-                      </button>
+                            <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-neutral-400">
+                            <span
+                              className="dot"
+                              style={{ ['--dot' as string]: issue.status.color }}
+                            />
+                              {issue.status.name}
+                            </span>
+                          </div>
+                        </button>
+                        <a
+                          href={ticketPath(issue)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Open ${issue.identifier} in new tab`}
+                          title={`Open ${issue.identifier} in new tab`}
+                          onClick={() => {
+                            titleInputRef.current?.focus()
+                          }}
+                          className="btn btn-ghost btn-icon btn-xs ml-1 text-neutral-400 no-underline visited:text-neutral-400" >
+                            <Icon name="external" size={13} />
+                        </a>
+                     </div>
                     </li>
                   ))}
                 </ul>
