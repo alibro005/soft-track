@@ -336,9 +336,9 @@ export default function BoardPage() {
   /**
    * Leave the board for a ticket's page (#112) -- the command palette, search
    * results and notifications all go there, where the board and the list
-   * open the panel instead, and the panel's own way out does too. The view
-   * and the search go onto this history entry first, so Back comes back to
-   * them; see BoardReturn.
+   * open the panel instead, and the panel's own way out does too, as do the
+   * linked-ticket modals over it (#114). The view and the search go onto this
+   * history entry first, so Back comes back to them; see BoardReturn.
    */
   const leaveForTicket = useCallback(
     (ticket: TicketRef) => {
@@ -364,7 +364,8 @@ export default function BoardPage() {
 
   if (!team) {
     if (teams.length > 0) return <Navigate to={`/${teams[0].key}`} replace />
-    return <Navigate to="/new-team" replace />
+    // The page for somebody on no team (#318), not straight to making one.
+    return <Navigate to="/" replace />
   }
 
   const openTicket = loadedTicket ?? (ticketNumber ? fetchedTicket.data : undefined)
@@ -545,9 +546,9 @@ export default function BoardPage() {
         <TicketDetailPanel
           ticketId={openTicket.id}
           onClose={() => navigate(`/${team.key}`)}
-          // Back from the page is the panel again, over the same view.
-          onOpenAsPage={() => leaveForTicket(openTicket)}
-          canCloseOnEscape={() => overlays.top === 'ticketPanel'}
+          // Back from the page is the panel again, over the same view -- and
+          // with the modals that were open over it (#114).
+          openPage={leaveForTicket}
         />
       )}
     </TeamProvider>

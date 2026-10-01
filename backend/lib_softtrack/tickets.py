@@ -17,7 +17,6 @@ from lib_softtrack import custom_fields as custom_fields_service
 from lib_softtrack import outbound
 from lib_softtrack.models.tickets import (
     TicketBulkChanges,
-    TicketBulkDelete,
     TicketBulkUpdate,
     TicketMove,
     TicketCreate,
@@ -61,9 +60,13 @@ from lib_softtrack.statuses import (
     in_category,
     resolve_for_team,
 )
-from lib_softtrack.storage import Storage
 from lib_softtrack.subtickets import child_progress, detach_children, validate_parent
-from lib_softtrack.teams import get_team_or_404, is_team_member, require_team_member
+from lib_softtrack.teams import (
+    get_team_or_404,
+    require_assignable,
+    require_team_member,
+)
+from lib_softtrack.trash import INCLUDE_TRASHED
 from lib_utils.errors import ErrorCode, api_error
 
 
@@ -259,6 +262,7 @@ def create_ticket(
     team = get_team_or_404(team_id, session)
     require_team_member(team_id, current_user, session)
     _require_on_team(session, Project, payload.project_id, team_id, "project")
+    require_assignable(team_id, payload.assignee_id, session)
     # Checked before anything is written, so a ticket refused for a missing
     # field does not use up a number -- or exist at all.
     field_changes = custom_fields_service.resolve(
@@ -346,6 +350,7 @@ def list_tickets(
     due_from: Optional[date] = None,
     due_to: Optional[date] = None,
     type: Optional[TicketType] = None,
+    resolved: Optional[bool] = None,
     sort: TicketSort = TicketSort.created,
     direction: SortDirection = SortDirection.desc,
     limit: int = DEFAULT_LIMIT,
@@ -374,6 +379,9 @@ def list_tickets(
     )
     if type is not None:
         filters.append(Ticket.type == type)
+    if resolved is not None:
+        done_or_cancelled = in_category(*RESOLVED)
+        filters.append(done_or_cancelled if resolved else ~done_or_cancelled)
     if due is not None:
         filters.append(_due_filter(due, today or datetime.now(timezone.utc).date()))
     # A date range, both ends inclusive (#105): the calendar asks for the days
@@ -601,10 +609,34 @@ def _export_rows(tickets: list[Ticket], session: Session) -> list[TicketExportRo
     ]
 
 
-def get_ticket(session: Session, current_user: User, ticket_id: int) -> TicketRead:
-    ticket = get_ticket_or_404(session, ticket_id)
+def _readable(session: Session, current_user: User, ticket: Optional[Ticket]) -> Ticket:
+    """A ticket somebody on its team may read, or why not.
+
+    Read with the trash included (#323), so a link to a deleted ticket gets
+    410 `ticket_in_trash` -- and a page that says who deleted it and offers it
+    back -- rather than a 404 that reads as a typo.
+    """
+    if ticket is None:
+        raise api_error(
+            status_code=404, code=ErrorCode.ticket_not_found, detail="Ticket not found"
+        )
     require_team_member(ticket.team_id, current_user, session)
-    return ticket_to_read(ticket, session)
+    if ticket.deleted_at is not None:
+        team = session.get(Team, ticket.team_id)
+        raise api_error(
+            status_code=410,
+            code=ErrorCode.ticket_in_trash,
+            detail=f"{team.key}-{ticket.number} is in the trash",
+            # A 410 is cacheable by default, and browsers do cache it: the
+            # page that restores the ticket would be served the old answer.
+            headers={"Cache-Control": "no-store"},
+        )
+    return ticket
+
+
+def get_ticket(session: Session, current_user: User, ticket_id: int) -> TicketRead:
+    ticket = session.get(Ticket, ticket_id, execution_options=INCLUDE_TRASHED)
+    return ticket_to_read(_readable(session, current_user, ticket), session)
 
 
 def get_ticket_by_number(
@@ -613,13 +645,11 @@ def get_ticket_by_number(
     get_team_or_404(team_id, session)
     require_team_member(team_id, current_user, session)
     ticket = session.exec(
-        select(Ticket).where(Ticket.team_id == team_id, Ticket.number == number)
+        select(Ticket)
+        .where(Ticket.team_id == team_id, Ticket.number == number)
+        .execution_options(**INCLUDE_TRASHED)
     ).one_or_none()
-    if not ticket:
-        raise api_error(
-            status_code=404, code=ErrorCode.ticket_not_found, detail="Ticket not found"
-        )
-    return ticket_to_read(ticket, session)
+    return ticket_to_read(_readable(session, current_user, ticket), session)
 
 
 def update_ticket(
@@ -680,6 +710,10 @@ def _apply_update(
     _require_on_team(
         session, Project, data.get("project_id"), ticket.team_id, "project"
     )
+    # Only a change is checked, so an edit that sends the assignee back as it
+    # was still saves on a ticket assigned before guests could not be (#316).
+    if "assignee_id" in data and data["assignee_id"] != ticket.assignee_id:
+        require_assignable(ticket.team_id, data["assignee_id"], session)
     # The team's own fields (#117) after the type, which decides which of
     # them this ticket has -- and checked before anything is set, so a bad
     # value leaves the ticket as it was.
@@ -712,6 +746,35 @@ def _apply_update(
     # changes are recorded as a separate step in the history rather than
     # folded into the one the person made.
     rules_service.on_ticket_updated(session, ticket, rule_before, current_user)
+
+
+def hand_over_open_tickets(
+    session: Session,
+    current_user: User,
+    team_id: int,
+    user_id: int,
+    reassign_to: Optional[int],
+) -> None:
+    """Give somebody's open tickets on a team to `reassign_to`, or to nobody.
+
+    For somebody leaving the team or made a guest, who may no longer hold its
+    tickets (#316). Each goes through the same update as a change made by
+    hand, so its history says who took it off them, the new assignee is told,
+    and webhooks and rules hear of it. Done and cancelled tickets keep their
+    assignee. Nothing is committed: the change of membership and the handover
+    are one transaction, the caller's.
+    """
+    tickets = session.exec(
+        select(Ticket)
+        .where(
+            Ticket.team_id == team_id,
+            Ticket.assignee_id == user_id,
+            ~in_category(*RESOLVED),
+        )
+        .order_by(Ticket.number)
+    ).all()
+    for ticket in tickets:
+        _apply_update(session, current_user, ticket, {"assignee_id": reassign_to}, None)
 
 
 #: Most urgent highest, so "descending" reads as "most urgent first" -- the
@@ -801,18 +864,6 @@ def move_ticket(
     session.commit()
     session.refresh(ticket)
     return ticket_to_read(ticket, session)
-
-
-def delete_ticket(
-    session: Session, current_user: User, ticket_id: int, storage: Storage
-) -> None:
-    ticket = get_ticket_or_404(session, ticket_id)
-    require_team_member(ticket.team_id, current_user, session)
-
-    storage_keys = _delete_rows(session, ticket)
-    session.commit()
-
-    attachments_service.purge(storage, storage_keys)
 
 
 def _delete_rows(session: Session, ticket: Ticket) -> list[str]:
@@ -981,14 +1032,7 @@ def _validate_bulk_changes(
             code=ErrorCode.labels_conflict,
             detail="A label cannot be both added and removed.",
         )
-    if changes.assignee_id is not None and not is_team_member(
-        team_id, changes.assignee_id, session
-    ):
-        raise api_error(
-            status_code=400,
-            code=ErrorCode.user_not_on_team,
-            detail="The assignee is not a member of this team.",
-        )
+    require_assignable(team_id, changes.assignee_id, session)
 
 
 def _bulk_label_ids(
@@ -1050,32 +1094,3 @@ def bulk_update_tickets(
         raise
 
     return _expand_tickets(tickets, session)
-
-
-def bulk_delete_tickets(
-    session: Session,
-    current_user: User,
-    team_id: int,
-    payload: TicketBulkDelete,
-    storage: Storage,
-) -> None:
-    """Delete many tickets in one transaction, then purge their attachments.
-
-    Deleting a parent and one of its sub-tickets in the same batch is fine in
-    either order: the parent's delete promotes the child, and the child's
-    delete removes it.
-    """
-    get_team_or_404(team_id, session)
-    require_team_member(team_id, current_user, session)
-    tickets = _team_tickets_or_404(session, team_id, payload.ticket_ids)
-
-    storage_keys: list[str] = []
-    try:
-        for ticket in tickets:
-            storage_keys += _delete_rows(session, ticket)
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-
-    attachments_service.purge(storage, storage_keys)

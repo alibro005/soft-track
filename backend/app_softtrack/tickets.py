@@ -12,6 +12,7 @@ from app_softtrack.guards import team_writer
 from lib_identity.identity import get_current_user
 from lib_identity.models.identity import UserPublic
 from lib_softtrack import custom_fields as custom_fields_service
+from lib_softtrack import deleting
 from lib_softtrack import estimates as estimates_service
 from lib_softtrack import history as history_service
 from lib_softtrack import tickets as tickets_service
@@ -31,7 +32,6 @@ from lib_softtrack.models.tickets import (
 )
 from lib_softtrack.models.links import TicketLinkCreate, TicketLinkRead, TicketLinks
 from lib_softtrack.models.page import DEFAULT_LIMIT, MAX_LIMIT, Page
-from lib_softtrack.storage import Storage, get_storage
 from lib_softtrack.models.transfers import (
     TicketTransfer,
     TransferPlan,
@@ -191,6 +191,11 @@ def list_tickets(
         None, description="Only tickets due on or before this day."
     ),
     type: Optional[TicketType] = Query(None, description="Only tickets of this type."),
+    resolved: Optional[bool] = Query(
+        None,
+        description="true for only done and cancelled tickets, false for only "
+        "the ones still open.",
+    ),
     sort: TicketSort = Query(TicketSort.created, description="What to order by."),
     direction: SortDirection = Query(
         SortDirection.desc,
@@ -218,6 +223,7 @@ def list_tickets(
         due_from=due_from,
         due_to=due_to,
         type=type,
+        resolved=resolved,
         sort=sort,
         direction=direction,
         limit=limit,
@@ -251,18 +257,15 @@ def bulk_delete_tickets(
     team_id: int,
     payload: TicketBulkDelete,
     session: Session = Depends(get_session),
-    storage: Storage = Depends(get_storage),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete up to 200 of the team's tickets, all of them or none.
+    """Move up to 200 of the team's tickets to the trash, all of them or none.
 
     A POST rather than a DELETE with a body, which too many clients and
-    proxies drop. Each ticket goes the way a single delete takes it --
-    attachments with it, sub-tickets promoted.
+    proxies drop. Each ticket goes the way a single delete takes it, and the
+    team's policy on who may delete is checked for every one first (#323).
     """
-    tickets_service.bulk_delete_tickets(
-        session, current_user, team_id, payload, storage
-    )
+    deleting.trash_tickets(session, current_user, team_id, payload)
 
 
 @router.get(
@@ -402,16 +405,16 @@ def update_ticket(
 def delete_ticket(
     ticket_id: int,
     session: Session = Depends(get_session),
-    storage: Storage = Depends(get_storage),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete a ticket and everything that only existed because of it.
+    """Move a ticket to the trash (#323).
 
-    Attachments go with it, bytes included -- see
-    `lib_softtrack/tickets.py`. Sub-tickets do not: they are promoted to top
-    level rather than destroyed.
+    Everything it has stays with it -- comments, links, attachments, history,
+    sub-tickets -- until it is restored, or purged after the trash's
+    retention. On a team that leaves deleting to a ticket's creator and its
+    admins, anybody else gets 403 `not_allowed_to_delete`.
     """
-    tickets_service.delete_ticket(session, current_user, ticket_id, storage)
+    deleting.trash_ticket(session, current_user, ticket_id)
 
 
 @router.get("/tickets/{ticket_id}/links", response_model=TicketLinks)

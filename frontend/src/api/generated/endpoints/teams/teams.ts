@@ -26,7 +26,9 @@ import type {
 
 import type {
   HTTPValidationError,
+  RemoveTeamMemberTeamsTeamIdMembersUserIdDeleteParams,
   TeamCreate,
+  TeamDirectoryEntry,
   TeamMemberAdd,
   TeamMemberRead,
   TeamMemberUpdate,
@@ -214,6 +216,99 @@ export const useCreateTeamTeamsPost = <TError = HTTPValidationError,
       return useMutation(getCreateTeamTeamsPostMutationOptions(options), queryClient);
     }
     /**
+ * Every team, with its size and admins: who to ask to be added (#318).
+ * @summary Team Directory
+ */
+export const teamDirectoryTeamsDirectoryGet = (
+
+ signal?: AbortSignal
+) => {
+
+
+      return apiClient<TeamDirectoryEntry[]>(
+      {url: `/teams/directory`, method: 'GET', signal
+    },
+      );
+    }
+
+
+
+
+export const getTeamDirectoryTeamsDirectoryGetQueryKey = () => {
+    return [
+    `/teams/directory`
+    ] as const;
+    }
+
+
+export const getTeamDirectoryTeamsDirectoryGetQueryOptions = <TData = Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>, TError, TData>>, }
+) => {
+
+const {query: queryOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getTeamDirectoryTeamsDirectoryGetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>> = ({ signal }) => teamDirectoryTeamsDirectoryGet(signal);
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type TeamDirectoryTeamsDirectoryGetQueryResult = NonNullable<Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>>
+export type TeamDirectoryTeamsDirectoryGetQueryError = unknown
+
+
+export function useTeamDirectoryTeamsDirectoryGet<TData = Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>,
+          TError,
+          Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useTeamDirectoryTeamsDirectoryGet<TData = Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>,
+          TError,
+          Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>
+        > , 'initialData'
+      >, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useTeamDirectoryTeamsDirectoryGet<TData = Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Team Directory
+ */
+
+export function useTeamDirectoryTeamsDirectoryGet<TData = Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof teamDirectoryTeamsDirectoryGet>>, TError, TData>>, }
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getTeamDirectoryTeamsDirectoryGetQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+/**
  * @summary Get Team
  */
 export const getTeamTeamsTeamIdGet = (
@@ -609,12 +704,14 @@ export const useUpdateTeamMemberRoleTeamsTeamIdMembersUserIdPatch = <TError = HT
 export const removeTeamMemberTeamsTeamIdMembersUserIdDelete = (
     teamId: number,
     userId: number,
+    params?: RemoveTeamMemberTeamsTeamIdMembersUserIdDeleteParams,
  signal?: AbortSignal
 ) => {
 
 
       return apiClient<void>(
-      {url: `/teams/${teamId}/members/${userId}`, method: 'DELETE', signal
+      {url: `/teams/${teamId}/members/${userId}`, method: 'DELETE',
+        params, signal
     },
       );
     }
@@ -639,9 +736,9 @@ const {mutation: mutationOptions} = options ?
 
 
       const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeTeamMemberTeamsTeamIdMembersUserIdDelete>>, RemoveTeamMemberTeamsTeamIdMembersUserIdDeleteMutationVariables> = (props) => {
-          const {teamId,userId} = props ?? {};
+          const {teamId,userId,params} = props ?? {};
 
-          return  removeTeamMemberTeamsTeamIdMembersUserIdDelete(teamId,userId,)
+          return  removeTeamMemberTeamsTeamIdMembersUserIdDelete(teamId,userId,params,)
         }
 
 
@@ -654,7 +751,7 @@ const {mutation: mutationOptions} = options ?
     export type RemoveTeamMemberTeamsTeamIdMembersUserIdDeleteMutationResult = NonNullable<Awaited<ReturnType<typeof removeTeamMemberTeamsTeamIdMembersUserIdDelete>>>
 
     export type RemoveTeamMemberTeamsTeamIdMembersUserIdDeleteMutationError = HTTPValidationError
-    export type RemoveTeamMemberTeamsTeamIdMembersUserIdDeleteMutationVariables = {teamId: number;userId: number}
+    export type RemoveTeamMemberTeamsTeamIdMembersUserIdDeleteMutationVariables = {teamId: number;userId: number;params?: RemoveTeamMemberTeamsTeamIdMembersUserIdDeleteParams}
 
     /**
  * @summary Remove Team Member

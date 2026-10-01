@@ -45,6 +45,11 @@ class ErrorCode(str, enum.Enum):
     not_team_admin = "not_team_admin"
     #: A guest of the team (#104): may look, may not change anything.
     team_read_only = "team_read_only"
+    #: Deleting a ticket or an epic the team's policy leaves to its creator
+    #: -- an epic's lead -- and the team's admins (#323).
+    not_allowed_to_delete = "not_allowed_to_delete"
+    #: Reading a ticket that is in the trash, answered 410 (#323).
+    ticket_in_trash = "ticket_in_trash"
     not_site_admin = "not_site_admin"
     #: Money is for finance admins only (#130), whatever else the account may
     #: do -- a site admin included.
@@ -61,6 +66,9 @@ class ErrorCode(str, enum.Enum):
     project_not_found = "project_not_found"
     sprint_not_found = "sprint_not_found"
     status_not_found = "status_not_found"
+    label_not_found = "label_not_found"
+    #: Restoring or purging something that is not in the trash (#323).
+    not_in_trash = "not_in_trash"
     view_not_found = "view_not_found"
     rule_not_found = "rule_not_found"
     link_not_found = "link_not_found"
@@ -106,6 +114,8 @@ class ErrorCode(str, enum.Enum):
     rule_name_taken = "rule_name_taken"
     #: Department names are unique whatever the case (#123).
     department_name_taken = "department_name_taken"
+    #: So are a team's label names (#321).
+    label_name_taken = "label_name_taken"
     already_member = "already_member"
     link_exists = "link_exists"
     link_contradicts = "link_contradicts"
@@ -132,6 +142,8 @@ class ErrorCode(str, enum.Enum):
     parent_is_subticket = "parent_is_subticket"
     ticket_has_subtickets = "ticket_has_subtickets"
     labels_conflict = "labels_conflict"
+    #: A label deleted by merging it into itself (#321).
+    label_merge_into_same = "label_merge_into_same"
     status_order_incomplete = "status_order_incomplete"
     template_order_incomplete = "template_order_incomplete"
     custom_field_order_incomplete = "custom_field_order_incomplete"

@@ -10,7 +10,15 @@ import enum
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from sqlalchemy import JSON, CheckConstraint, Column, Enum, Index, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    Column,
+    Enum,
+    Index,
+    UniqueConstraint,
+    event,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import SQLModel, Field, Relationship
 
@@ -216,6 +224,9 @@ class TicketEventField(str, enum.Enum):
     #: `custom_field_id`; one value for all of them, because the set of
     #: fields is the team's and cannot be an enum.
     custom_field = "custom_field"
+    #: Moved to the trash, or restored from it (#323). The new value is when
+    #: it went in, as ISO text; restoring writes an empty one.
+    trash = "trash"
 
 
 class DueFilter(str, enum.Enum):
@@ -635,6 +646,11 @@ class WebhookEvent(str, enum.Enum):
     #: `ticket.status_changed`, so a consumer can listen to only the latter.
     ticket_updated = "ticket.updated"
     ticket_status_changed = "ticket.status_changed"
+    #: Moved to the trash, and back out of it (#323). Purging sends nothing:
+    #: by then the ticket has been gone from every consumer's point of view
+    #: for as long as the trash keeps things.
+    ticket_deleted = "ticket.deleted"
+    ticket_restored = "ticket.restored"
     comment_created = "comment.created"
     sprint_started = "sprint.started"
     sprint_completed = "sprint.completed"
@@ -792,6 +808,11 @@ class Team(SQLModel, table=True):
     #: default" is a fact about the schema instead of an invariant the service
     #: has to keep re-establishing.
     default_view_id: Optional[int] = Field(default=None, foreign_key="savedview.id")
+    #: Whether any member may delete any ticket or epic (#323), or only its
+    #: creator -- an epic's lead -- and the team's admins. False for a new
+    #: team; the teams there were before the trash keep True, which is what
+    #: deleting always was.
+    any_member_may_delete: bool = Field(default=False)
     created_at: datetime = Field(default_factory=utcnow)
 
 
@@ -819,13 +840,39 @@ class Project(SQLModel, table=True):
     #: team's list, so nothing that references it goes blank.
     archived: bool = Field(default=False)
     created_at: datetime = Field(default_factory=utcnow)
+    #: In the trash since (#323), and who put it there. Its tickets keep
+    #: pointing here, so they rejoin it when it is restored.
+    deleted_at: Optional[datetime] = Field(default=None, index=True)
+    deleted_by_id: Optional[int] = Field(default=None, foreign_key="user.id")
+
+
+def label_name_key(name: str) -> str:
+    """What makes two label names the same label: `Label.name_key`."""
+    return name.strip().casefold()
 
 
 class Label(SQLModel, table=True):
+    #: One label per name on a team, whatever the case (#321), so "feature"
+    #: cannot join "Feature" even when two people add it at once.
+    __table_args__ = (
+        UniqueConstraint("team_id", "name_key", name="uq_label_team_name_key"),
+    )
+
     id: Optional[int] = Field(default=None, primary_key=True)
     team_id: int = Field(foreign_key="team.id", index=True)
     name: str
     color: str = Field(default="#94a3b8")
+    #: `name` trimmed and case-folded. A column rather than an index on
+    #: `lower(name)`, as with `Department.name_key`. Kept in step with `name`
+    #: by `_keep_label_name_key` on every insert and update, so a caller that
+    #: only sets the name cannot leave it stale.
+    name_key: str = Field(default="")
+
+
+@event.listens_for(Label, "before_insert")
+@event.listens_for(Label, "before_update")
+def _keep_label_name_key(_mapper, _connection, label: Label) -> None:
+    label.name_key = label_name_key(label.name)
 
 
 class Ticket(SQLModel, table=True):
@@ -869,6 +916,12 @@ class Ticket(SQLModel, table=True):
     due_date: Optional[date] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
+    #: In the trash since (#323), and who put it there. A trashed ticket keeps
+    #: everything -- comments, links, attachments, history -- and is left out
+    #: of every query that does not ask for it (`lib_softtrack.trash`), until
+    #: it is restored or purged.
+    deleted_at: Optional[datetime] = Field(default=None, index=True)
+    deleted_by_id: Optional[int] = Field(default=None, foreign_key="user.id")
 
 
 class TicketLink(SQLModel, table=True):

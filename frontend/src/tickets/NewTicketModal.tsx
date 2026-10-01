@@ -9,6 +9,7 @@ import { ticketPath, useOpenTicket } from '@/tickets/surface'
 import { TicketPriority, type TicketType } from '@/api/generated/models'
 import { Trans, userText, useTranslation } from '@/i18n'
 import { formatList } from '@/i18n/format'
+import { AssigneeOptions } from '@/tickets/AssigneeOptions'
 import { CustomFieldControl } from '@/tickets/CustomFieldControl'
 import {
   type FieldInput,
@@ -485,11 +486,7 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
               aria-label={t('newTicket.assignee')}
             >
               <option value="">{t('newTicket.unassigned')}</option>
-              {activeMembers(members).map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.full_name}
-                </option>
-              ))}
+              <AssigneeOptions members={members} />
             </Select>
           </div>
 

@@ -18,6 +18,9 @@ class TeamRead(BaseModel):
     name: str
     key: str
     description: Optional[str] = None
+    #: Whether any member may delete any ticket or epic, or only its creator
+    #: -- an epic's lead -- and the team's admins (#323).
+    any_member_may_delete: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -33,6 +36,9 @@ class TeamUpdate(BaseModel):
 
     name: Optional[str] = None
     description: Optional[str] = None
+    #: Who may delete (#323): any member, or only a ticket's creator -- an
+    #: epic's lead -- and the team's admins.
+    any_member_may_delete: Optional[bool] = None
 
 
 class TeamMemberAdd(BaseModel):
@@ -42,6 +48,27 @@ class TeamMemberAdd(BaseModel):
 
 class TeamMemberUpdate(BaseModel):
     role: TeamRole
+    #: Who takes the open tickets of somebody made a guest, who may not hold
+    #: any (#316). Left out, they are unassigned. Ignored for other changes.
+    reassign_to: Optional[int] = None
+
+
+class TeamDirectoryEntry(BaseModel):
+    """A team as somebody who is not on it sees it (#318).
+
+    Enough to know who to ask to be added: its name, its size and its admins.
+    Nothing of its work -- no tickets, epics or sprints -- which still takes
+    being on the team.
+    """
+
+    id: int
+    name: str
+    key: str
+    description: Optional[str] = None
+    #: Everybody on it with an active account, guests included.
+    member_count: int
+    #: Its active admins, longest-serving first.
+    admins: list[UserPublic]
 
 
 class TeamMemberRead(BaseModel):
