@@ -36,11 +36,8 @@ export function useGlobalShortcuts({
       }
 
       if (event.key === 'Escape') {
-        if (isTypingTarget(event.target)) return
-
-        if(hasOpenOverlay){
+        if (hasOpenOverlay) {
           closeTop()
-          event.stopImmediatePropagation()
         }
         return
       }
@@ -64,9 +61,9 @@ export function useGlobalShortcuts({
     }
 
 
-    window.addEventListener('keydown', onKeyDown, true)
-    return () => window.removeEventListener('keydown', onKeyDown, true)
-  },[
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [
     togglePalette,
     closeTop,
     openNewTicket,

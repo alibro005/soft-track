@@ -74,14 +74,9 @@ vi.mock('@/api/generated/endpoints/search/search', () => ({
   },
 }))
 
-const { openTicket } = vi.hoisted(() => ({
-  openTicket: vi.fn(),
-}))
-
 vi.mock('@/tickets/surface', () => ({
   ticketPath: (ticket: { team_key: string; number: number }) =>
     `/${ticket.team_key}/ticket/${ticket.number}`,
-  useOpenTicket: () => openTicket,
 }))
 
 // The team's description templates (#97). Most tests have none, which is
@@ -196,7 +191,13 @@ function Harness({ onClose, onShortcut }: { onClose: () => void; onShortcut: () 
     suppressed: false,
     hasOpenOverlay: true,
   })
-  return open ? <NewTicketModal onClose={close} /> : null
+  return open ? (
+    <NewTicketModal onClose={close} />
+  ) : (
+    <button type="button" onClick={() => setOpen(true)}>
+      Reopen
+    </button>
+  )
 }
 
 function renderModal() {
@@ -218,7 +219,6 @@ const optionsOf = (name: string) =>
 beforeEach(() => {
   mutateAsync.mockReset()
   searchHook.mockReset()
-  openTicket.mockReset()
   searchState.data = { items: [] }
   searchState.isFetching = false
   mutation.isPending = false
@@ -357,7 +357,7 @@ describe('NewTicketModal', () => {
     })
   })
 
-  it('dismisses similar tickets until the modal is reopened', async () => {
+  it('dismisses similar tickets and shows them again after reopening', async () => {
     searchState.data = { items: [SUGGESTION] }
 
     const { user } = renderModal()
@@ -370,9 +370,13 @@ describe('NewTicketModal', () => {
     await user.click(screen.getByRole('button', { name: 'Dismiss similar tickets' }))
 
     expect(screen.queryByText('Fix the login button')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Reopen' }))
+    await user.type(screen.getByRole('textbox', { name: 'Ticket title' }), 'fix login button')
+    expect(await screen.findByText('Fix the login button')).toBeTruthy()
   })
 
-  it('opens a similar tickets in the panel', async () => {
+  it('opens a similar ticket in a new tab without leaving the draft modal', async () => {
     searchState.data = { items: [SUGGESTION] }
 
     const { user } = renderModal()
@@ -401,7 +405,9 @@ describe('NewTicketModal', () => {
 
     await user.click(suggestion)
 
-    expect(openTicket).toHaveBeenCalledWith(SUGGESTION, 'panel')
+    expect(suggestion.getAttribute('href')).toBe('/ENG/ticket/101')
+    expect(suggestion.getAttribute('target')).toBe('_blank')
+    expect(screen.getByRole('dialog', { name: 'New ticket' })).toBeTruthy()
   })
 
   it('does not open a suggestion while composing with IME', async () => {
@@ -414,14 +420,35 @@ describe('NewTicketModal', () => {
     await screen.findByText('Fix the login button')
 
     await user.keyboard('{ArrowDown}')
-    openTicket.mockClear()
+    const openWindow = vi.spyOn(window, 'open').mockImplementation(() => null)
 
     fireEvent.keyDown(title, {
       key: 'Enter',
       isComposing: true,
     })
 
-    expect(openTicket).not.toHaveBeenCalled()
+    expect(openWindow).not.toHaveBeenCalled()
+  })
+
+  it('does not enable search for two words, but does for three', async () => {
+    const { user } = renderModal()
+    const title = screen.getByRole<HTMLInputElement>('textbox', { name: 'Ticket title' })
+
+    await user.type(title, 'fix login')
+    await waitFor(() => {
+      expect(searchHook).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: 'x' }),
+        expect.objectContaining({ query: expect.objectContaining({ enabled: false }) }),
+      )
+    })
+
+    await user.type(title, ' button')
+    await waitFor(() => {
+      expect(searchHook).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: 'fix login button' }),
+        expect.objectContaining({ query: expect.objectContaining({ enabled: true }) }),
+      )
+    })
   })
 
   it('keeps suggestions visible while a new search is fetching', async () => {
@@ -449,9 +476,14 @@ describe('NewTicketModal', () => {
     await screen.findByText('Fix the login button')
 
     await user.keyboard('{ArrowDown}')
+    const openWindow = vi.spyOn(window, 'open').mockImplementation(() => null)
     await user.keyboard('{Enter}')
 
-    expect(openTicket).toHaveBeenCalledWith(SUGGESTION, 'panel')
+    expect(openWindow).toHaveBeenCalledWith(
+      '/ENG/ticket/101',
+      '_blank',
+      'noopener,noreferrer',
+    )
   })
 
   it('sends nothing for the fields left untouched', async () => {

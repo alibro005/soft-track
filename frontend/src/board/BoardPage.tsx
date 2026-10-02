@@ -269,12 +269,11 @@ export default function BoardPage() {
 
   const closeTop = useCallback(() => {
     if (overlays.top === 'ticketPanel') {
-      navigate(`/${teamKey}`)
       return
     }
 
     overlays.closeTop()
-  }, [navigate, overlays, teamKey])
+  }, [overlays])
 
   useGlobalShortcuts({
     togglePalette,

@@ -5,7 +5,7 @@ import { errorDetail } from '@/api/errors'
 import { useCreateTicketTeamsTeamIdTicketsPost } from '@/api/generated/endpoints/tickets/tickets'
 import { useListTemplatesTeamsTeamIdTicketTemplatesGet } from '@/api/generated/endpoints/templates/templates'
 import { useSearchSearchGet } from '@/api/generated/endpoints/search/search'
-import { ticketPath, useOpenTicket } from '@/tickets/surface'
+import { ticketPath } from '@/tickets/surface'
 import { TicketPriority, type TicketType } from '@/api/generated/models'
 import { Trans, userText, useTranslation } from '@/i18n'
 import { formatList } from '@/i18n/format'
@@ -67,7 +67,6 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
   const [suggestionsDismissed, setSuggestionsDismissed] = useState(false)
   const [selectedSuggestion, setSelectedSuggestion] = useState(-1)
 
-  const openTicket = useOpenTicket()
   const searchPhrase = useDebounced(getSearchPhrase(title), 400)
 
   const searchResults = useSearchSearchGet(
@@ -79,6 +78,7 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
     {
       query: {
         enabled: searchPhrase.length > 0 && !suggestionsDismissed,
+        staleTime: 30_000,
       },
     },
   )
@@ -261,8 +261,6 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
                     setSuggestionsDismissed(true)
                     return
                   }
-
-                  onClose()
                   return
                 }
 
@@ -286,7 +284,11 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
 
                 if (event.key === 'Enter' && highlightedSuggestion >= 0) {
                   event.preventDefault()
-                  openTicket(suggestions[highlightedSuggestion], 'panel')
+                  window.open(
+                    ticketPath(suggestions[highlightedSuggestion]),
+                    '_blank',
+                    'noopener,noreferrer',
+                  )
                 }
               }}
               placeholder={t('newTicket.ticketTitle')}
@@ -319,12 +321,13 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
                   {suggestions.map((issue, index) => (
                     <li key={issue.id}>
                       <div className="flex items-center">
-                        <button
+                        <a
                           id={`similar-issue-${issue.id}`}
-                          type="button"
                           role="option"
                           aria-selected={index === highlightedSuggestion}
-                          onClick={() => openTicket(issue, 'panel')}
+                          href={ticketPath(issue)}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className={`min-w-0 flex-1 px-3 py-2 text-left transition-colors focus:outline-none ${
                             index === highlightedSuggestion
                               ? 'bg-brand-500/10'
@@ -348,7 +351,7 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
                               {issue.status.name}
                             </span>
                           </div>
-                        </button>
+                        </a>
                         <a
                           href={ticketPath(issue)}
                           target="_blank"
