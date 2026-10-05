@@ -23,7 +23,6 @@ import type {
   StatusRead,
   TeamMemberRead,
 } from '@/api/generated/models'
-
 import { NewTicketModal } from '@/tickets/NewTicketModal'
 import { useGlobalShortcuts } from '@/keyboard/useGlobalShortcuts'
 import { TeamProvider } from '@/team/TeamContext'
@@ -189,7 +188,6 @@ function Harness({ onClose, onShortcut }: { onClose: () => void; onShortcut: () 
     openNewTicket: onShortcut,
     openShortcuts: onShortcut,
     suppressed: false,
-    hasOpenOverlay: true,
   })
   return open ? (
     <NewTicketModal onClose={close} />
@@ -399,7 +397,7 @@ describe('NewTicketModal', () => {
       )
     })
 
-    const suggestion = await screen.findByRole('option', {
+    const suggestion = await screen.findByRole('link', {
       name: /ENG-101.*Fix the login button.*Todo/,
     })
 

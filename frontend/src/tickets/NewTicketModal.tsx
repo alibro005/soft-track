@@ -240,13 +240,6 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
               required
               value={title}
               ref={titleInputRef}
-              aria-controls="similar-issues-list"
-              aria-expanded={suggestions.length > 0}
-              aria-activedescendant={
-                highlightedSuggestion >= 0
-                  ? `similar-issue-${suggestions[highlightedSuggestion].id}`
-                  : undefined
-              }
               onChange={(e) => {
                 setTitle(e.target.value)
                 setSelectedSuggestion(-1)
@@ -299,72 +292,60 @@ export function NewTicketModal({ onClose }: { onClose: () => void }) {
               <div className="well mt-2 overflow-hidden rounded-card">
                 <div className="flex items-center justify-between px-3 py-1.5">
                   <span className="eyebrow">
-                    {t('newTicket.similarIssues')}
+                    {t('newTicket.similarTickets')}
                   </span>
 
                   <button
                     type="button"
                     onClick={() => setSuggestionsDismissed(true)}
                     className="btn btn-ghost btn-icon btn-xs text-neutral-400"
-                    aria-label={t('newTicket.dismissSimilarIssues')}
+                    aria-label={t('newTicket.dismissSimilarTickets')}
                   >
                     <Icon name="close" size={11} />
                   </button>
                 </div>
 
                 <ul
-                  id="similar-issues-list"
-                  role="listbox"
-                  aria-label={t('newTicket.similarIssues')}
+                  id="similar-tickets-list"
                   className="divide-y divide-neutral-900/6"
                 >
-                  {suggestions.map((issue, index) => (
-                    <li key={issue.id}>
-                      <div className="flex items-center">
-                        <a
-                          id={`similar-issue-${issue.id}`}
-                          role="option"
-                          aria-selected={index === highlightedSuggestion}
-                          href={ticketPath(issue)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`min-w-0 flex-1 px-3 py-2 text-left transition-colors focus:outline-none ${
-                            index === highlightedSuggestion
-                              ? 'bg-brand-500/10'
-                              : 'hover:bg-neutral-900/4'
-                          }`}
-                        >
-                          <div className="flex min-w-0 items-center gap-2">
-                            <span className="identifier shrink-0 text-[11px] font-medium text-neutral-400">
-                              {issue.identifier}
-                            </span>
+                  {suggestions.map((ticket, index) => (
+                    <li
+                      key={ticket.id}
+                      className={
+                        index === highlightedSuggestion
+                          ? 'bg-brand-500/10'
+                          : 'hover:bg-neutral-900/4'
+                      }
+                    >
+                      <a
+                        id={`similar-ticket-${ticket.id}`}
+                        href={ticketPath(ticket)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => {
+                          titleInputRef.current?.focus()
+                        }}
+                        className="block min-w-0 px-3 py-2 text-left transition-colors focus:outline-none"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="identifier shrink-0 text-[11px] font-medium text-neutral-400">
+                            {ticket.identifier}
+                          </span>
 
-                            <span className="min-w-0 flex-1 truncate text-xs font-medium text-neutral-800">
-                              {issue.title}
-                            </span>
+                          <span className="min-w-0 flex-1 truncate text-xs font-medium text-neutral-800">
+                            {ticket.title}
+                          </span>
 
-                            <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-neutral-400">
+                          <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-neutral-400">
                             <span
                               className="dot"
-                              style={{ ['--dot' as string]: issue.status.color }}
+                              style={{ ['--dot' as string]: ticket.status.color }}
                             />
-                              {issue.status.name}
-                            </span>
-                          </div>
-                        </a>
-                        <a
-                          href={ticketPath(issue)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          aria-label={`Open ${issue.identifier} in new tab`}
-                          title={`Open ${issue.identifier} in new tab`}
-                          onClick={() => {
-                            titleInputRef.current?.focus()
-                          }}
-                          className="btn btn-ghost btn-icon btn-xs ml-1 text-neutral-400 no-underline visited:text-neutral-400" >
-                            <Icon name="external" size={13} />
-                        </a>
-                     </div>
+                            {ticket.status.name}
+                          </span>
+                        </div>
+                      </a>
                     </li>
                   ))}
                 </ul>

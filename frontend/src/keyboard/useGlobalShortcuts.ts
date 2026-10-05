@@ -15,7 +15,6 @@ export function useGlobalShortcuts({
   openNewTicket,
   openShortcuts,
   suppressed,
-  hasOpenOverlay,
 }: {
   togglePalette: () => void
   /** Escape: close the shallowest open layer, never two at once. */
@@ -25,7 +24,6 @@ export function useGlobalShortcuts({
   openShortcuts: () => void
   /** True while the palette or the cheatsheet is up, so C and ? stay quiet. */
   suppressed: boolean
-  hasOpenOverlay: boolean
 }) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -36,9 +34,7 @@ export function useGlobalShortcuts({
       }
 
       if (event.key === 'Escape') {
-        if (hasOpenOverlay) {
-          closeTop()
-        }
+        closeTop()
         return
       }
 
@@ -60,16 +56,7 @@ export function useGlobalShortcuts({
       }
     }
 
-
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [
-    togglePalette,
-    closeTop,
-    openNewTicket,
-    openShortcuts,
-    suppressed,
-    hasOpenOverlay,
-  ])
-
+  }, [togglePalette, closeTop, openNewTicket, openShortcuts, suppressed])
 }

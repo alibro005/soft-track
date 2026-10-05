@@ -5,6 +5,9 @@ import { type Overlay, overlayReducer } from '@/board/overlays'
 export function useOverlays() {
   const [stack, dispatch] = useReducer(overlayReducer, [])
 
+  // One object per stack change, not per render: callers put this in
+  // useCallback deps, and a fresh object every render would make the global
+  // key listener re-attach on every keystroke in the search box.
   const open = useCallback(
     (overlay: Overlay) => dispatch({ type: 'open', overlay }),
     [],
