@@ -78,10 +78,7 @@ export function DeleteTicketDialog({
         className="glass-strong w-full max-w-md rounded-panel p-5 shadow-xl"
       >
         <h2 id={titleId} className="text-base font-semibold text-neutral-900">
-          {t('panel.delete.title', {
-            identifier: ticket.identifier,
-            title: ticket.title,
-          })}
+          {t('panel.delete.title', {identifier: ticket.identifier,})}
         </h2>
 
         <div className="mt-4 flex items-center gap-2 rounded-control bg-neutral-100 px-3 py-2.5">

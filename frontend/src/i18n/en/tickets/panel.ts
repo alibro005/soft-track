@@ -18,7 +18,7 @@ export const panel = {
     delete: 'Delete ticket…',
   },
   delete: {
-    title: 'Delete {{identifier}} — {{title}}?',
+    title: 'Delete {{identifier}}?',
     removes: 'This removes the ticket, its comments, attached files and history.',
     promotes: 'Sub-tickets move to the top level, and links to other tickets are removed.',
     subTickets_one: '{{count}} sub-ticket',
