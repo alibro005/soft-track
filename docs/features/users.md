@@ -134,9 +134,41 @@ teams on the instance with their size and admins, so a new hire knows whom to
 ask to be added. Pending invitations come first. Creating a team is one option
 at the bottom, or the main one on an instance that has no teams yet.
 
-The list comes from `GET /teams/directory`: every team's name, key, size and
-active admins, readable by anybody signed in, the way the people directory is.
-It says nothing of a team's work. Asking to join from it is #259.
+The list comes from `GET /teams/directory`: every listed team's name, key,
+size and active admins, readable by anybody signed in but an account from
+outside the organisation, the way the people directory is. It says nothing of
+a team's work. The page leads with it, and asking to join is on each row.
+
+### Finding a team and asking to join it
+
+`/teams` (#259, "Find a team" in the sidebar) is the same directory for
+anybody, on a team or not. Each team offers what fits: **Ask to join**, with
+an optional note; **Join** at once, for a team that is open to join; the
+request already sent, with **Withdraw**; or **Open** for a team you are on.
+
+- **Asking** emails the team's active admins where this instance sends mail,
+  and the request waits under Settings → Members, with the person's title,
+  department and manager beside it. An admin approves with a role, or
+  declines; the person is emailed either way. Adding them by hand or by
+  invitation settles the request too.
+- **One open request per person per team**, enforced in the database. It runs
+  out after `INVITE_EXPIRE_DAYS`, as an invitation does. A request is a row
+  that disappears, like an invitation: approving leaves the membership, and
+  declining or withdrawing leaves nothing.
+- **Who can find this team**, under a team's General settings: **Listed in
+  Teams** (on by default) and **Open to join** (off by default). A team off
+  the list is shown only to its members and to whoever already asked, and the
+  directory says how many teams keep themselves off it; asking or joining it
+  answers as if there were no such team. An archived team (#307) is neither
+  shown nor counted, and cannot be asked or joined.
+- An account from outside the organisation neither reads the directory nor
+  asks or joins: it is invited.
+
+Routes: `POST /teams/{team_id}/join-requests`, `DELETE
+/teams/join-requests/{join_request_id}` (your own), `POST
+/teams/{team_id}/join`, and for the team's admins `GET
+/teams/{team_id}/join-requests` and `POST
+/teams/{team_id}/join-requests/{join_request_id}/approve|decline`.
 
 ### Guests
 
@@ -253,6 +285,28 @@ just stopped working.
 - Accept, decline and revoke all delete the row. The membership and its
   `joined_at` are the record worth keeping.
 - Links expire after `INVITE_EXPIRE_DAYS` (7 by default).
+
+### Inviting many people at once
+
+**Invite many at once**, on the Members page, takes pasted addresses
+(separated by commas, spaces or new lines; "Name <address>" is understood), a
+role, and one or more of the teams the admin administers. Before anything is
+sent it previews each address: will be invited, already a member, has a live
+invitation (and will get a fresh link), or not an address, with its line.
+Sending makes one invitation per address per team by the rules above, so a
+bulk link is as tied to its address as any other. With SMTP the links are
+emailed (the admin can untick that), and the summary afterwards counts what
+was sent, skipped and failed, with the reason for each, including any the
+mail server refused. Links nobody was emailed are listed to copy and can be
+downloaded as CSV. One submission takes up to `BULK_INVITE_LIMIT` addresses
+(100 by default). An account from outside the organisation is not invited in
+bulk; invite it on its own, with the epics it may see.
+
+A site admin can tick **Create accounts for anybody without one, and add
+everybody directly**: each address without an account gets one, as
+**New account** makes it (#303), and everybody is put on the teams straight
+away instead of being invited. The API is `POST /teams/{team_id}/invites/bulk`,
+which returns a result per address; `preview: true` changes nothing.
 
 ### Invite-only instances
 

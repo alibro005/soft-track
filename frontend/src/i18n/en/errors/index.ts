@@ -17,6 +17,7 @@ export const errors = {
   current_password_incorrect: 'That is not your current password.',
   reset_link_invalid:
     'This reset link is invalid or has expired. Ask for a new one below.',
+  session_not_found: 'That session has already ended.',
 
   // What a team lets you do.
   not_team_member: 'You are not a member of this team.',
@@ -29,6 +30,22 @@ export const errors = {
   last_site_admin: 'This instance needs at least one active site administrator.',
   cannot_deactivate_self: 'You cannot deactivate your own account.',
   cannot_demote_self: 'You cannot remove your own site admin access.',
+
+  // Who may create teams (#306).
+  team_creation_restricted:
+    'Teams on this SoftTrack are created by site admins or named people. Ask for a team instead.',
+  team_creation_from_environment:
+    'Who may create teams is set as TEAM_CREATION in the environment, which wins over this page.',
+  team_request_decided: 'Somebody has already approved or declined this request.',
+
+  // Every team on the instance (#307).
+  already_team_admin: 'They are an admin of this team already.',
+  team_not_empty: 'This team has tickets, so it can be archived and not deleted.',
+
+  // Finding a team and asking to join it (#259).
+  join_request_pending: 'You have asked to join this team already. Withdraw that request to send another.',
+  join_request_not_found: 'That request is no longer waiting: it was decided, withdrawn or ran out.',
+  team_not_open: 'This team takes requests to join. Ask to join it instead.',
 
   // Whose comment it is (#93).
   not_your_comment:
