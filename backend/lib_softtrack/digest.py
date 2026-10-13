@@ -19,6 +19,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import update
 from sqlmodel import Session, select
 
+from lib_softtrack.metrics import DIGEST_SENDS
 from lib_softtrack.models.notifications import NotificationRead
 from lib_softtrack.notifications import expand_notifications
 from lib_softtrack.tables import Notification, NotificationKind, User
@@ -222,8 +223,10 @@ def send_pending_digests(
         subject, body = render_digest(expand_notifications(session, mine), base_url)
         try:
             mailer.send(user.email, subject, body)
+            DIGEST_SENDS.labels(result="success").inc()
             sent += 1
         except Exception:
+            DIGEST_SENDS.labels(result="failure").inc()
             # The rows stay claimed. Everything in them is already in the
             # user's inbox, so nothing is lost by not retrying -- whereas a
             # relay that rejects every message would otherwise have this loop

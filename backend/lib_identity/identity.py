@@ -10,7 +10,25 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, func, select
 
 from lib_identity import api_tokens, sessions
-from lib_identity.models.identity import Token, UserUpdate
+from lib_identity.models.identity import (
+    Token,
+    TotpEnrolmentResult,
+    TotpEnrolmentStart,
+    TotpLoginPending,
+    UserUpdate,
+)
+from lib_identity.totp import (
+    TotpSecretUnreadable,
+    check_recovery_code,
+    decode_recovery_codes,
+    decrypt_secret,
+    encode_recovery_codes,
+    encrypt_secret,
+    generate_recovery_codes,
+    generate_secret,
+    provisioning_uri,
+    verify_code_with_step,
+)
 from lib_identity.usernames import (
     assert_username_free,
     derive_username,
@@ -20,7 +38,12 @@ from lib_softtrack.outside import confine
 from lib_softtrack.tables import User, utcnow
 from lib_utils.password import hash_password, is_usable_password, verify_password
 from lib_utils.rate_limit import address_of, api_token_by_address
-from lib_utils.token import decode_access_token, is_access_token
+from lib_utils.token import (
+    create_totp_pending_token,
+    decode_access_token,
+    decode_totp_pending_token,
+    is_access_token,
+)
 from web import get_session, settings
 from lib_utils.errors import ErrorCode, api_error
 
@@ -100,6 +123,8 @@ def get_current_user(
     # exchange ticket travels in a URL fragment and is deliberately worth
     # nothing on its own; without this check its shape -- a subject and a
     # version -- would make it a bearer token for the two minutes it lives.
+    # The same goes for the half-finished sign-in of a two-factor account,
+    # which has passed the password but not yet the code.
     if not is_access_token(payload):
         raise credentials_exception
     user = session.get(User, int(payload["sub"]))
@@ -184,6 +209,7 @@ def create_user(
     # so it has to be automatic or a fresh install has no administrator.
     is_first = session.exec(select(func.count()).select_from(User)).one() == 0
 
+    external = not is_first and invited_from_outside(session, email)
     user = User(
         email=email,
         username=handle,
@@ -193,7 +219,7 @@ def create_user(
         is_site_admin=is_first,
         # Invited from outside the organisation (#243): what the account is
         # from the start, decided by the invitation and never by the person.
-        is_external=not is_first and invited_from_outside(session, email),
+        is_external=external,
         # Creating an account hands out a token, so it *is* a sign-in. Leaving
         # this null would show someone who signed up a minute ago as "never
         # signed in" in the admin directory. Not so for one a site admin
@@ -278,7 +304,19 @@ def login_user(
     *,
     request: Request,
     background: BackgroundTasks | None = None,
-) -> Token:
+) -> Token | TotpLoginPending:
+    """Phase 1 of login: verify the password.
+
+    Returns a full `Token` for users without 2FA, or a `TotpLoginPending` for
+    users who have TOTP enabled -- the client must complete the second step at
+    POST /auth/totp/verify. Only a `Token` is a session (#308): the pending
+    answer makes no row, so nothing appears in the account's list of sessions
+    and no new-browser email goes out until the code is accepted.
+
+    The timing-oracle mitigation is preserved: both branches always run one
+    bcrypt verify, so an unknown address and a known one with the wrong
+    password take the same time.
+    """
     user = find_user_by_email(session, email)
 
     # Verify against a hash that cannot match rather than returning early, so
@@ -311,6 +349,9 @@ def login_user(
             detail="This account has been deactivated",
         )
 
+    if user.totp_enabled:
+        return totp_challenge(user)
+
     user.last_login_at = utcnow()
     session.add(user)
     session.commit()
@@ -318,9 +359,210 @@ def login_user(
     return ticket_token(session, user, request, background)
 
 
+def totp_challenge(user: User) -> TotpLoginPending:
+    """The answer to a first factor that passed, for an account with 2FA on.
+
+    Shared with signing in through Google or GitHub, which is a first factor
+    too: turning two-factor on has to mean every way in asks for a code.
+
+    The pending token is deliberately not single-use. It is only ever handed
+    to someone who has just passed the first factor, and redeeming it needs a
+    code that has never been accepted before, so presenting it twice within
+    its five minutes buys nothing that signing in again would not.
+    """
+    return TotpLoginPending(
+        pending_token=create_totp_pending_token(user.id, user.token_version)
+    )
+
+
 def _profile_text(value: str | None) -> str | None:
     """A title or location as stored: trimmed, and null rather than blank."""
     return (value or "").strip() or None
+
+
+def _readable_secret(encrypted: str) -> str:
+    try:
+        return decrypt_secret(encrypted)
+    except TotpSecretUnreadable:
+        raise api_error(
+            status_code=409,
+            code=ErrorCode.totp_unavailable,
+            detail=(
+                "Two-factor sign-in is unavailable for this account. "
+                "Ask a site admin to reset it."
+            ),
+        )
+
+
+def _spend_second_factor(user: User, code: str) -> bool:
+    """Whether `code` is a live TOTP code or an unused recovery code.
+
+    Either way it is spent on the row: the TOTP step is recorded so the same
+    code is refused next time, wherever it is presented, and a recovery code
+    is struck off. The caller commits.
+    """
+    if user.totp_secret:
+        valid, step = verify_code_with_step(
+            _readable_secret(user.totp_secret),
+            code,
+            last_time_step=user.totp_last_step,
+        )
+        if valid:
+            user.totp_last_step = step
+            return True
+
+    matched, remaining = check_recovery_code(
+        code, decode_recovery_codes(user.totp_recovery_codes)
+    )
+    if matched:
+        user.totp_recovery_codes = encode_recovery_codes(remaining)
+    return matched
+
+
+def verify_totp_login(
+    session: Session,
+    pending_token: str,
+    code: str,
+    *,
+    request: Request,
+    background: BackgroundTasks | None = None,
+) -> Token:
+    """Phase 2 of login: trade a pending token and a code for a session.
+
+    This is where the session row starts (#308) -- with the browser and
+    address of the request that brought the code, and the new-browser email
+    if there is one -- because this is the moment the account is signed in.
+    """
+    decoded = decode_totp_pending_token(pending_token)
+    user = session.get(User, decoded[0]) if decoded else None
+    if (
+        user is None
+        or not user.is_active
+        or not user.totp_enabled
+        or user.token_version != decoded[1]
+    ):
+        raise api_error(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code=ErrorCode.totp_session_expired,
+            detail="Your sign-in has expired. Enter your password again.",
+        )
+
+    if not _spend_second_factor(user, code):
+        raise api_error(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code=ErrorCode.totp_code_invalid,
+            detail="Invalid or expired two-factor code",
+        )
+
+    user.last_login_at = utcnow()
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return ticket_token(session, user, request, background)
+
+
+def begin_totp_enrolment(session: Session, user: User) -> TotpEnrolmentStart:
+    """Start setting up an authenticator: a fresh secret, not yet in force.
+
+    Refused while two-factor is on. Replacing a live secret without its code
+    would let a stolen session swap in its own authenticator and then turn
+    two-factor off with it -- the very check `disable_totp` exists to make.
+    Moving to a new phone is turning it off, then on again.
+    """
+    if user.totp_enabled:
+        raise api_error(
+            status_code=400,
+            code=ErrorCode.totp_already_enabled,
+            detail="Two-factor is already on. Turn it off first to set it up again.",
+        )
+    secret = generate_secret()
+    user.totp_pending_secret = encrypt_secret(secret)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return TotpEnrolmentStart(
+        provisioning_uri=provisioning_uri(secret, user.email), manual_key=secret
+    )
+
+
+def confirm_totp_enrolment(
+    session: Session, user: User, code: str, request: Request
+) -> TotpEnrolmentResult:
+    """Put the pending secret in force once the authenticator proves it has it.
+
+    Every other session is signed out, because they were signed in without a
+    second factor; this one is kept (#308), as a password change keeps it,
+    and the fresh token in the result is what carries it on.
+    """
+    if not user.totp_pending_secret:
+        raise api_error(
+            status_code=400,
+            code=ErrorCode.totp_not_enrolling,
+            detail="No two-factor setup in progress. Start it again.",
+        )
+    valid, step = verify_code_with_step(
+        _readable_secret(user.totp_pending_secret), code
+    )
+    if not valid:
+        raise api_error(
+            status_code=400,
+            code=ErrorCode.totp_code_invalid,
+            detail="Invalid code. Check your authenticator and try again.",
+        )
+
+    plain_codes, hashed_codes = generate_recovery_codes()
+    user.totp_secret = user.totp_pending_secret
+    user.totp_pending_secret = None
+    user.totp_enabled = True
+    user.totp_recovery_codes = encode_recovery_codes(hashed_codes)
+    # The code that turned it on is spent: it cannot then sign in as well.
+    user.totp_last_step = step
+    user.token_version += 1
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return TotpEnrolmentResult(
+        recovery_codes=plain_codes, token=sessions.reissue(session, user, request)
+    )
+
+
+def disable_totp(session: Session, user: User, code: str, request: Request) -> Token:
+    """Turn two-factor off, given a live code or a recovery code.
+
+    Every other session ends, as when it was turned on; this one is kept.
+    """
+    if not user.totp_enabled:
+        raise api_error(
+            status_code=400,
+            code=ErrorCode.totp_not_enabled,
+            detail="Two-factor is not on for this account.",
+        )
+    if not _spend_second_factor(user, code):
+        raise api_error(
+            status_code=400,
+            code=ErrorCode.totp_code_invalid,
+            detail=(
+                "Invalid code. Enter a code from your authenticator "
+                "or a recovery code."
+            ),
+        )
+
+    clear_totp(user)
+    user.token_version += 1
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return sessions.reissue(session, user, request)
+
+
+def clear_totp(user: User) -> None:
+    """Every piece of two-factor state, gone -- a half-finished setup too."""
+    user.totp_secret = None
+    user.totp_pending_secret = None
+    user.totp_enabled = False
+    user.totp_recovery_codes = None
+    user.totp_last_step = None
 
 
 def update_profile(session: Session, user: User, payload: UserUpdate) -> User:

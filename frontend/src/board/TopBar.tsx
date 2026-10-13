@@ -22,6 +22,8 @@ const VIEWS: Array<{ id: BoardView; icon: IconName }> = [
   { id: 'calendar', icon: 'calendar-grid' },
   { id: 'roadmap', icon: 'calendar' },
   { id: 'reports', icon: 'chart' },
+  // Sprint capacity (#269): beside Reports.
+  { id: 'plan', icon: 'users' },
 ]
 
 export function TopBar({
@@ -43,6 +45,7 @@ export function TopBar({
   onToggleNotifications,
   onCloseNotifications,
   onOpenNotifiedTicket,
+  archived = false,
 }: {
   view: BoardView
   onViewChange: (view: BoardView) => void
@@ -50,8 +53,11 @@ export function TopBar({
   onGroupingChange: (grouping: BoardGrouping) => void
   sort: BoardSort
   onSortChange: (sort: BoardSort) => void
-  /** Absent for a guest (#104): the button is not shown. */
+  /** Absent for a guest (#104), and on an archived team (#322): the button
+   *  is not shown. */
   onNewTicket?: () => void
+  /** The team is archived (#322): "View only" says why. */
+  archived?: boolean
   onOpenSidebar: () => void
   search: string
   onSearchChange: (value: string) => void
@@ -69,8 +75,11 @@ export function TopBar({
   const { team } = useTeamContext()
   const { user } = useAuth()
   const { t } = useTranslation(['board', 'common'])
-  // Somebody from outside sees their epics, not the team's reports (#243).
-  const views = VIEWS.filter((item) => !(user?.is_external && item.id === 'reports'))
+  // Somebody from outside sees their epics, not the team's reports (#243)
+  // or who can take what (#269).
+  const views = VIEWS.filter(
+    (item) => !(user?.is_external && (item.id === 'reports' || item.id === 'plan')),
+  )
 
   return (
     <header className="glass flex flex-wrap items-center gap-2 rounded-panel px-3 py-2">
@@ -211,7 +220,7 @@ export function TopBar({
           <span
             className="chip"
             style={{ ['--chip' as string]: 'var(--color-neutral-500)' }}
-            title={t('topBar.viewOnlyHint')}
+            title={archived ? t('topBar.viewOnlyArchivedHint') : t('topBar.viewOnlyHint')}
           >
             {t('topBar.viewOnly')}
           </span>

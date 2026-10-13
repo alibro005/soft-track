@@ -84,6 +84,18 @@ export function badgeLabel(unread: number): string {
     : formatNumber(unread)
 }
 
+/**
+ * What a screen reader hears when the count changes. Empty at zero: nothing
+ * arriving is not news, and an empty live region announces nothing.
+ *
+ * The exact count, not badgeLabel's `9+` cap, which exists only for the
+ * badge's width -- so this is deliberately not routed through badgeLabel.
+ */
+export function unreadAnnouncement(unread: number): string {
+  if (unread === 0) return ''
+  return i18n.t('notifications:bell.announce', { count: unread, n: formatNumber(unread) })
+}
+
 /** Between a floating panel and the control it hangs from, and the viewport. */
 const GAP = 8
 

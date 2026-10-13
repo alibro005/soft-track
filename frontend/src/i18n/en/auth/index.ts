@@ -7,6 +7,7 @@ import { resetPassword, welcome } from '@/i18n/en/auth/resetPassword'
 import { invite } from '@/i18n/en/auth/invite'
 import { providers } from '@/i18n/en/auth/providers'
 import { oauthErrors } from '@/i18n/en/auth/oauthErrors'
+import { totp } from '@/i18n/en/auth/totp'
 
 export const auth = {
   fields,
@@ -18,4 +19,5 @@ export const auth = {
   invite,
   providers,
   oauthErrors,
+  totp,
 } as const

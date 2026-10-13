@@ -98,6 +98,7 @@ too, but still call an epic a *project* (`/teams/{team_id}/projects`,
 - [Personal API tokens](docs/features/api-tokens.md)
 - [Sign-in rate limiting](docs/features/rate-limiting.md)
 - [Jira import](docs/features/jira-import.md)
+- [Prometheus metrics](docs/features/metrics.md)
 
 ## Development and contributing
 

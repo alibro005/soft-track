@@ -24,6 +24,7 @@ from fastapi import (
 from fastapi.responses import RedirectResponse
 from sqlmodel import Session
 
+from app_identity.identity import SIGN_IN_RESPONSES, sign_in_response
 from lib_identity import oauth as oauth_service
 from lib_identity.identity import get_current_user
 from lib_identity.models.identity import Token
@@ -192,7 +193,11 @@ def oauth_callback(
     )
 
 
-@router.post("/oauth/exchange", response_model=Token)
+@router.post(
+    "/oauth/exchange",
+    response_model=Token,
+    responses=SIGN_IN_RESPONSES,
+)
 def exchange_ticket(
     payload: OAuthExchange,
     request: Request,
@@ -203,9 +208,13 @@ def exchange_ticket(
 
     Deliberately unauthenticated and deliberately a POST: the ticket and the
     handshake together are the credential, and neither belongs in a URL.
+    For an account with two-factor on, the answer is a 202 asking for the
+    code, exactly as `/auth/login` gives.
     """
-    return oauth_service.exchange(
-        session, payload.ticket, payload.handshake, request, background
+    return sign_in_response(
+        oauth_service.exchange(
+            session, payload.ticket, payload.handshake, request, background
+        )
     )
 
 

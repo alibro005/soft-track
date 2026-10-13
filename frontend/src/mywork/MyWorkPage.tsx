@@ -34,6 +34,7 @@ import { PriorityIcon } from '@/tickets/PriorityIcon'
 import { ProjectBadge } from '@/tickets/TicketCard'
 import { TicketTypeIcon } from '@/tickets/TicketTypeIcon'
 import { ticketPath } from '@/tickets/surface'
+import { isArchived } from '@/team/archived'
 import { canWriteIn } from '@/team/members'
 import { useTeamContext } from '@/team/useTeamContext'
 import { Avatar } from '@/ui/Avatar'
@@ -76,7 +77,7 @@ export default function MyWorkPage() {
   const navigate = useNavigate()
 
   const overlays = useOverlays()
-  const canWrite = canWriteIn(members, user?.id)
+  const canWrite = !isArchived(team) && canWriteIn(members, user?.id)
   const openNewTicketNow = useCallback(() => overlays.open('newTicket'), [overlays])
   const openNewTicket = canWrite ? openNewTicketNow : undefined
   const openShortcuts = useCallback(() => overlays.open('shortcuts'), [overlays])
@@ -144,6 +145,11 @@ export default function MyWorkPage() {
           <option value="none">{t('grouping.none')}</option>
         </Select>
         <div className="flex-1" />
+        {/* My time (#267): the same work, as the hours it took. */}
+        <Link to="/my-work/time" className="btn btn-ghost btn-sm">
+          <Icon name="history" size={14} />
+          {t('myTime')}
+        </Link>
         {openNewTicket && (
           <button type="button" onClick={openNewTicket} className="btn btn-primary btn-sm">
             <Icon name="plus" size={14} />

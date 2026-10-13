@@ -39,6 +39,8 @@ class ErrorCode(str, enum.Enum):
     account_deactivated = "account_deactivated"
     #: Too many attempts; `Retry-After` says when to try again.
     rate_limited = "rate_limited"
+    #: /metrics while no METRICS_TOKEN is set (#100): the route does not exist.
+    metrics_disabled = "metrics_disabled"
 
     # --- what you may do -------------------------------------------------------
     not_team_member = "not_team_member"
@@ -118,6 +120,12 @@ class ErrorCode(str, enum.Enum):
     email_taken = "email_taken"
     username_taken = "username_taken"
     team_key_taken = "team_key_taken"
+    #: A key an archived team holds (#322): `ENG-42` is in commit messages
+    #: and chat logs, so the key is never given back.
+    team_key_archived = "team_key_archived"
+    #: A key a deleted team had given tickets under (#322), kept for the same
+    #: reason. A team deleted before its first ticket gives its key back.
+    team_key_retired = "team_key_retired"
     status_name_taken = "status_name_taken"
     template_name_taken = "template_name_taken"
     #: Field keys and names are unique on a team, whatever the case (#117).
@@ -226,6 +234,9 @@ class ErrorCode(str, enum.Enum):
     share_target_required = "share_target_required"
     #: A date worked that has not happened yet.
     worklog_in_future = "worklog_in_future"
+    #: A timesheet's range that ends before it starts, or covers more than a
+    #: year (#267).
+    timesheet_range_invalid = "timesheet_range_invalid"
     #: Moving a ticket to the team it is already on (#98).
     transfer_same_team = "transfer_same_team"
     view_other_team = "view_other_team"
@@ -349,6 +360,20 @@ class ErrorCode(str, enum.Enum):
     oauth_expired = "oauth_expired"
     oauth_connect_failed = "oauth_connect_failed"
     oauth_not_connected = "oauth_not_connected"
+    #: The two-factor code (or recovery code) is wrong, or was already used.
+    totp_code_invalid = "totp_code_invalid"
+    #: The five minutes between the password and the code ran out, or the
+    #: account's sessions were revoked in between. Start signing in again.
+    totp_session_expired = "totp_session_expired"
+    #: Confirming a two-factor setup that was never started.
+    totp_not_enrolling = "totp_not_enrolling"
+    #: Setting up two-factor again while it is on. Turn it off first.
+    totp_already_enabled = "totp_already_enabled"
+    #: Turning off two-factor on an account that does not have it.
+    totp_not_enabled = "totp_not_enabled"
+    #: The stored secret cannot be read with this instance's key -- usually a
+    #: rotated SECRET_KEY. A site admin has to clear two-factor for the account.
+    totp_unavailable = "totp_unavailable"
 
 
 class ApiErrorBody(BaseModel):

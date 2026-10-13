@@ -7,13 +7,15 @@ import {
 } from '@/api/generated/endpoints/tickets/tickets'
 import { useSearchSearchGet } from '@/api/generated/endpoints/search/search'
 import type { SavedViewRead } from '@/api/generated/models'
-import { errorCode, errorDetail } from '@/api/errors'
+import { errorCode, errorDetail, errorStatus } from '@/api/errors'
 import { useAuth } from '@/auth/useAuth'
 import { BulkActionBar } from '@/board/BulkActionBar'
 import {
   type BoardFilters,
   fromSearchParams,
   fromViewFilters,
+  isEmpty,
+  NO_FILTERS,
   sameFilters,
   whenIsSet,
   searchString,
@@ -59,9 +61,12 @@ import { ProjectPage } from '@/projects/ProjectPage'
 import { RoadmapView } from '@/projects/RoadmapView'
 import { useTeamEvents } from '@/realtime/useTeamEvents'
 import { ReportsView } from '@/reports/ReportsView'
+import { PlanView } from '@/sprints/PlanView'
 import { SearchResults } from '@/search/SearchResults'
 import { useDebounced } from '@/search/useDebounced'
 import { rememberTeam } from '@/team/lastTeam'
+import { ArchivedBanner } from '@/team/ArchivedBanner'
+import { activeTeams, isArchived } from '@/team/archived'
 import { canWriteIn } from '@/team/members'
 import { ShellFrame } from '@/team/ShellFrame'
 import { TeamProvider } from '@/team/TeamContext'
@@ -91,6 +96,9 @@ function boardReturnFrom(state: unknown): BoardReturn | null {
   }
 }
 
+/** What the server says of a ticket that is not there (404), or is in the trash (410, #323). */
+const GONE = [404, 410]
+
 export default function BoardPage() {
   const { teamKey, ticketNumber, projectId } = useParams<{
     teamKey: string
@@ -104,7 +112,7 @@ export default function BoardPage() {
   const goToTicket = useOpenTicket()
   const { team, isLoading, teams } = useTeamByKey(teamKey)
   const { user } = useAuth()
-  const { t } = useTranslation(['board', 'common'])
+  const { t } = useTranslation(['board', 'tickets', 'common'])
 
   // Read once, on mount: Back from a ticket's page lands here.
   const [returning] = useState(() => boardReturnFrom(location.state))
@@ -112,7 +120,7 @@ export default function BoardPage() {
   // The team's reports are not for somebody from outside the organisation
   // (#243), who sees only the epics they were given.
   const setView = (next: BoardView) =>
-    setBoardView(user?.is_external && next === 'reports' ? 'board' : next)
+    setBoardView(user?.is_external && (next === 'reports' || next === 'plan') ? 'board' : next)
   const [search, setSearch] = useState(returning?.search ?? '')
   // The sidebar is a drawer below the `lg` breakpoint.
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -142,10 +150,14 @@ export default function BoardPage() {
       const month = searchParams.get('month')
       if (month) next.set('month', month)
       // Navigated to rather than set, so an excluded filter reads `status!=5`
-      // in the address bar instead of `status%21=5` (#260).
-      navigate({ pathname: location.pathname, search: searchString(next) }, options)
+      // in the address bar instead of `status%21=5` (#260). An open panel
+      // keeps its state, which is what makes it the panel and not the page.
+      navigate(
+        { pathname: location.pathname, search: searchString(next) },
+        { ...options, state: ticketNumber ? location.state : undefined },
+      )
     },
-    [navigate, location.pathname, searchParams],
+    [navigate, location.pathname, location.state, ticketNumber, searchParams],
   )
   /** Undefined leaves the arrangement as it is; a saved view brings its own. */
   const setFilters = useCallback(
@@ -266,9 +278,10 @@ export default function BoardPage() {
     query: { enabled: Boolean(team) && searchQuery.length > 0 },
   })
 
-  // A guest (#104) is offered nothing that writes. The server refuses them
-  // regardless; this only keeps the board from offering what will fail.
-  const canWrite = canWriteIn(teamData.members, user?.id)
+  // A guest (#104) is offered nothing that writes, and nobody is on an
+  // archived team (#322). The server refuses them regardless; this only
+  // keeps the board from offering what will fail.
+  const canWrite = !isArchived(team) && canWriteIn(teamData.members, user?.id)
   const openNewTicketNow = useCallback(() => overlays.open('newTicket'), [overlays])
   const openNewTicket = canWrite ? openNewTicketNow : undefined
   const openNewProjectNow = useCallback(() => overlays.open('newProject'), [overlays])
@@ -328,10 +341,18 @@ export default function BoardPage() {
   const loadedTicket = ticketNumber
     ? tickets.find((i) => String(i.number) === ticketNumber)
     : undefined
+  // Not a number at all is a ticket nobody has, without asking.
+  const validNumber = Number.isInteger(Number(ticketNumber)) && Number(ticketNumber) > 0
   const fetchedTicket = useGetTicketByNumberTeamsTeamIdTicketsByNumberNumberGet(
     team?.id ?? 0,
     Number(ticketNumber ?? 0),
-    { query: { enabled: Boolean(team && ticketNumber) && !loadedTicket } },
+    {
+      query: {
+        enabled: Boolean(team && ticketNumber) && validNumber && !loadedTicket,
+        // Not there, or in the trash (#323): asking again changes neither.
+        retry: (failures, error) => failures < 1 && !GONE.includes(errorStatus(error) ?? 0),
+      },
+    },
   )
 
   /**
@@ -364,12 +385,42 @@ export default function BoardPage() {
   }
 
   if (!team) {
-    if (teams.length > 0) return <Navigate to={`/${teams[0].key}`} replace />
+    // The first team in use: an archived one (#322) is opened by its key,
+    // never landed on.
+    const fallback = activeTeams(teams)[0]
+    if (fallback) return <Navigate to={`/${fallback.key}`} replace />
     // The page for somebody on no team (#318), not straight to making one.
     return <Navigate to="/" replace />
   }
 
   const openTicket = loadedTicket ?? (ticketNumber ? fetchedTicket.data : undefined)
+  // A number with nothing behind it (#115) opens the panel saying so, in the
+  // ticket page's words, rather than leaving a bare board that looks exactly
+  // like a link that worked. Only when the server said there is nothing
+  // there: any other failure says what went wrong instead.
+  const missingTicket =
+    ticketNumber && !openTicket && (!validNumber || fetchedTicket.error)
+      ? {
+          identifier: `${team.key}-${ticketNumber}`,
+          ...(!validNumber || GONE.includes(errorStatus(fetchedTicket.error) ?? 0)
+            ? {
+                title: t('tickets:page.notFound'),
+                body: t('tickets:page.notFoundBody', { identifier: `${team.key}-${ticketNumber}` }),
+              }
+            : { body: errorDetail(fetchedTicket.error, t('tickets:page.loadFailed')) }),
+        }
+      : null
+  // Open, but not on the board under it: the board is filtered, and loaded
+  // whole, so the filters are what left the card out (#115). Past the first
+  // page of a filtered board it may only be further down, so nothing is said.
+  const hiddenByFilters =
+    Boolean(openTicket) &&
+    !loadedTicket &&
+    !isEmpty(filters) &&
+    ticketsQuery.data !== undefined &&
+    ticketsQuery.data.items.length >= ticketsQuery.data.total
+  // Back to the board as it is, filters and all.
+  const closeTicket = () => navigate({ pathname: `/${team.key}`, search: location.search })
   const selectedSprint = teamData.sprints.find((sprint) => sprint.id === filters.sprintId) ?? null
   const isTeamAdmin =
     teamData.members.find((member) => member.user.id === user?.id)?.role === 'admin'
@@ -457,7 +508,16 @@ export default function BoardPage() {
               onToggleNotifications={() => overlays.toggle('notifications')}
               onCloseNotifications={() => overlays.close('notifications')}
               onOpenNotifiedTicket={leaveForTicket}
+              archived={isArchived(team)}
             />
+            {/* Read-only since the day it was archived, and the way back for
+                whoever may take it (#322). */}
+            {isArchived(team) && (
+              <ArchivedBanner
+                team={team}
+                mayUnarchive={isTeamAdmin || Boolean(user?.is_site_admin)}
+              />
+            )}
             {selectedSprint && !searchQuery && (
               <SprintBanner
                 sprint={selectedSprint}
@@ -499,6 +559,8 @@ export default function BoardPage() {
                   <RoadmapView />
                 ) : view === 'reports' ? (
                   <ReportsView />
+                ) : view === 'plan' ? (
+                  <PlanView />
                 ) : view === 'board' ? (
                   <KanbanBoard
                     tickets={tickets}
@@ -569,12 +631,14 @@ export default function BoardPage() {
       {ticketNumber && openTicket && (
         <TicketDetailPanel
           ticketId={openTicket.id}
-          onClose={() => navigate(`/${team.key}`)}
+          onClose={closeTicket}
+          onClearFilters={hiddenByFilters ? () => setFilters(NO_FILTERS) : undefined}
           // Back from the page is the panel again, over the same view -- and
           // with the modals that were open over it (#114).
           openPage={leaveForTicket}
         />
       )}
+      {missingTicket && <TicketDetailPanel missing={missingTicket} onClose={closeTicket} />}
     </TeamProvider>
   )
 }

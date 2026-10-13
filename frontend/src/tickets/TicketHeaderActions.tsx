@@ -6,6 +6,7 @@ import { TicketActionsMenu } from '@/tickets/detail/TicketActionsMenu'
 import { DeleteTicketDialog } from '@/tickets/DeleteTicketDialog'
 import { MoveTicketModal } from '@/tickets/MoveTicketModal'
 import { WatchToggle } from '@/notifications/WatchToggle'
+import { activeTeams } from '@/team/archived'
 import { useCanWrite } from '@/team/useCanWrite'
 import { useTeamContext } from '@/team/useTeamContext'
 
@@ -29,8 +30,9 @@ export function TicketHeaderActions({
   const [moving, setMoving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   // Teams it could go to. Whether the user may write to each is the server's
-  // call, and the move dialog says so if not.
-  const elsewhere = teams.filter((team) => team.id !== ticket.team_id)
+  // call, and the move dialog says so if not. Not an archived one (#322),
+  // which takes nothing.
+  const elsewhere = activeTeams(teams).filter((team) => team.id !== ticket.team_id)
 
   return (
     <>

@@ -43,8 +43,13 @@ NOT_TEAM_WRITES = {
     ("POST", "/auth/oauth/{provider}/link-ticket"): "your own account",
     ("POST", "/auth/oauth/link"): "your own account",
     ("DELETE", "/auth/me/identities/{provider}"): "your own account",
+    ("POST", "/auth/totp/verify"): "no team involved",
+    ("POST", "/auth/totp/enrol"): "your own account",
+    ("POST", "/auth/totp/confirm"): "your own account",
+    ("POST", "/auth/totp/disable"): "your own account",
     ("PATCH", "/admin/users/{user_id}"): "site admins, not team roles",
     ("POST", "/admin/users/{user_id}/reset-password"): "site admins, not team roles",
+    ("POST", "/admin/users/{user_id}/clear-totp"): "site admins, not team roles",
     ("POST", "/admin/users/{user_id}/end-sessions"): "site admins, not team roles",
     # Accounts a site admin creates (#303).
     ("POST", "/admin/users"): "site admins, not team roles",
@@ -83,6 +88,7 @@ NOT_TEAM_WRITES = {
         "/finance/payroll/runs/{run_id}/approve",
     ): "finance admins, not team roles",
     ("POST", "/finance/payroll/runs/{run_id}/paid"): "finance admins, not team roles",
+    ("PUT", "/finance/payroll/types"): "finance admins, not team roles",
     (
         "POST",
         "/finance/expenses/{expense_id}/approve",
@@ -300,6 +306,8 @@ def world(client, team, guest, auth):
         "label_id": label["id"],
         "schedule_id": schedule["id"],
         "worklog_id": worklog["id"],
+        # A timesheet cell (#267): my time on a ticket on a day.
+        "worked_on": date.today().isoformat(),
         "share_link_id": share_link["link"]["id"],
         "join_request_id": join_request.json()["id"],
         # Somebody else on the team: changing *their* role is the write.
@@ -397,6 +405,7 @@ def test_a_guest_sees_what_a_member_sees(client, team, guest, world):
         f"/tickets/{ticket_id}/attachments",
         f"/tickets/{ticket_id}/links",
         f"/sprints/{world['sprint_id']}/burndown",
+        f"/sprints/{world['sprint_id']}/plan",
         f"/attachments/{world['attachment_id']}/content",
     ):
         response = client.get(path, headers=guest["headers"])

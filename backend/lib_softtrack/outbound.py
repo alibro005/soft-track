@@ -39,6 +39,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import delete, or_, update
 from sqlmodel import Session, select
 
+from lib_softtrack.metrics import WEBHOOK_DELIVERIES
 from lib_softtrack.tables import (
     OutboundWebhook,
     Team,
@@ -179,7 +180,13 @@ def emit(
     queries on every change. Nothing is committed here -- the rows join the
     caller's transaction, which is what makes this an outbox. Returns how many
     deliveries were queued.
+
+    An archived team's webhooks stop while it is archived (#322): nothing is
+    queued for them, a ping included.
     """
+    team = session.get(Team, team_id)
+    if team is None or team.archived_at is not None:
+        return 0
     query = select(OutboundWebhook).where(
         OutboundWebhook.team_id == team_id,
         OutboundWebhook.is_enabled == True,  # noqa: E712
@@ -194,7 +201,6 @@ def emit(
     if not listeners:
         return 0
 
-    team = session.get(Team, team_id)
     now = utcnow()
     body = json.dumps(
         {
@@ -368,11 +374,16 @@ def deliver_due(
     for delivery_id in _claim(session, list(due), now):
         delivery = session.get(WebhookDelivery, delivery_id)
         hook = session.get(OutboundWebhook, delivery.webhook_id)
-        if hook is None or not hook.is_enabled:
+        team = session.get(Team, hook.team_id) if hook is not None else None
+        # Queued before its team was archived (#322): it stops with the rest.
+        archived = team is not None and team.archived_at is not None
+        if hook is None or not hook.is_enabled or archived:
             delivery.status = "failed"
             delivery.next_attempt_at = None
             delivery.response_excerpt = (
-                "The webhook was switched off before this was sent."
+                "The team was archived before this was sent."
+                if archived
+                else "The webhook was switched off before this was sent."
             )
             delivery.completed_at = now
             session.add(delivery)
@@ -430,6 +441,9 @@ def _attempt(session, hook, delivery, sender, now, resolve) -> None:
     session.add(delivery)
     session.add(hook)
     session.commit()
+    WEBHOOK_DELIVERIES.labels(
+        direction="out", result="success" if ok else "failure"
+    ).inc()
     _prune(session, hook.id)
 
 

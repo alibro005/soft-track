@@ -18,6 +18,7 @@ from lib_softtrack.models.comments import (
 )
 from lib_softtrack.models.page import DEFAULT_LIMIT, Page
 from lib_softtrack.tickets import get_ticket_or_404
+from lib_softtrack.metrics import COMMENTS_CREATED
 from lib_softtrack.storage import Storage
 from lib_softtrack.tables import Comment, Ticket, TeamRole, User, WebhookEvent, utcnow
 from lib_softtrack.teams import require_team_commenter, require_team_member
@@ -92,6 +93,7 @@ def create_comment(
         raise
     session.refresh(comment)
 
+    COMMENTS_CREATED.inc()
     return _comment_to_read(
         comment,
         current_user,

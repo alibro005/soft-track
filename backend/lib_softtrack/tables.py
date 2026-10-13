@@ -245,6 +245,10 @@ class TicketEventField(str, enum.Enum):
     #: removed. Never an opening value: it is the line the Activity feed
     #: shows for how the ticket began.
     schedule = "schedule"
+    #: The time estimate, and remaining set by hand (#268), in minutes. What
+    #: the burndown in hours replays.
+    time_estimate = "time_estimate"
+    remaining = "remaining"
 
 
 class DueFilter(str, enum.Enum):
@@ -519,6 +523,19 @@ class TeamCreationPolicy(str, enum.Enum):
     named_people = "named_people"
 
 
+class EstimateUnit(str, enum.Enum):
+    """What a team estimates in (#268): story points, hours, or both.
+
+    Points is the default, and a team that leaves it sees no change. There is
+    no conversion between the two: points say how big a piece of work is,
+    hours what it was meant to cost, and a team may ask both.
+    """
+
+    points = "points"
+    hours = "hours"
+    both = "both"
+
+
 class TeamRequestState(str, enum.Enum):
     """Where somebody's request for a team is (#306). Decided once."""
 
@@ -591,6 +608,22 @@ class Department(SQLModel, table=True):
     name_key: str
     description: Optional[str] = None
     created_at: datetime = Field(default_factory=utcnow)
+
+
+class EmploymentType(str, enum.Enum):
+    """What kind of account or engagement somebody has with the organisation
+    (#247, #320).
+
+    An account with no type, or an employee, is on payroll. The others are on
+    payroll only when finance switches their type on
+    (`InstanceSettings.payroll_types`) -- except external, which never is.
+    """
+
+    employee = "employee"
+    contractor = "contractor"
+    intern = "intern"
+    external = "external"
+    service_account = "service_account"
 
 
 class User(SQLModel, table=True):
@@ -697,6 +730,12 @@ class User(SQLModel, table=True):
     #: the epics it was given there and nothing else (`lib_softtrack/
     #: outside.py`). Never a site or finance admin.
     is_external: bool = Field(default=False)
+    #: What kind of account this is (#320). None behaves as an employee. Not
+    #: an access-control flag: `is_external` is, and the two are not synced.
+    employment_type: Optional[EmploymentType] = Field(
+        default=None,
+        nullable=True,
+    )
 
     # --- Prepared by a site admin (#303) -----------------------------------
 
@@ -706,6 +745,13 @@ class User(SQLModel, table=True):
     #: not been activated. True for every account that registered or signed
     #: in with a provider, which was there to activate it itself.
     is_activated: bool = Field(default=True)
+
+    # --- Two-factor authentication ----------------------------------------
+    totp_secret: Optional[str] = Field(default=None)
+    totp_pending_secret: Optional[str] = Field(default=None)
+    totp_enabled: bool = Field(default=False)
+    totp_recovery_codes: Optional[str] = Field(default=None)
+    totp_last_step: Optional[int] = Field(default=None)
 
     @property
     def has_password(self) -> bool:
@@ -998,6 +1044,14 @@ class Team(SQLModel, table=True):
     #: Whether sub-tickets count against a column's limit, or only the work
     #: they are part of.
     wip_counts_subtickets: bool = Field(default=True)
+    #: Points, hours or both (#268). Which estimates the ticket panel offers,
+    #: and what the board's "Has no estimate" asks about.
+    estimate_unit: EstimateUnit = Field(default=EstimateUnit.points)
+    #: What one person can take in a sprint (#269), before anybody changes it
+    #: for a sprint: points for a whole sprint, and minutes for each working
+    #: day. Both shrink with the days somebody is away.
+    capacity_points: int = Field(default=10)
+    capacity_minutes_per_day: int = Field(default=6 * 60)
     created_at: datetime = Field(default_factory=utcnow)
     #: Whether the team is in the team directory (#259), where people who are
     #: not on it see its name, key, size and admins and can ask to join. On
@@ -1007,9 +1061,9 @@ class Team(SQLModel, table=True):
     #: organisation -- joins it as a member without asking (#259). Off unless
     #: a team admin turns it on.
     open_to_join: bool = Field(default=False)
-    #: When a site admin archived it from Administration -> Teams (#307);
-    #: null for a team in use. What being archived does to the team itself
-    #: -- read-only, out of the switcher and the pickers -- is #322's.
+    #: When it was archived, by a site admin from Administration -> Teams
+    #: (#307) or by a team admin from its settings (#322); null for a team in
+    #: use. An archived team is read-only (`require_team_not_archived`).
     archived_at: Optional[datetime] = None
 
 
@@ -1107,6 +1161,14 @@ class Ticket(SQLModel, table=True):
     # Story points. Null means "not sized yet", which is a different thing
     # from zero -- a burndown has to be able to tell them apart.
     estimate: Optional[int] = Field(default=None)
+    #: How long it was meant to take, in minutes (#268), beside the points
+    #: rather than in their place. Minutes, like `Worklog.minutes`, so the two
+    #: subtract exactly.
+    time_estimate_minutes: Optional[int] = Field(default=None)
+    #: What is left, in minutes, when somebody has said so by hand. Null means
+    #: worked out: the time estimate less what is logged, never below zero.
+    #: See lib_softtrack/time_estimates.py.
+    remaining_minutes: Optional[int] = Field(default=None)
     #: When it is due (#87). A date rather than a datetime, like a project's
     #: target: "due Friday" is a day, and a timestamp would move it across
     #: midnight for anybody in another timezone.
@@ -1185,6 +1247,23 @@ class SprintAction(SQLModel, table=True):
     ticket_id: int = Field(foreign_key="ticket.id", index=True)
     text: str
     created_at: datetime = Field(default_factory=utcnow)
+
+
+class SprintCapacity(SQLModel, table=True):
+    """One person's capacity in one sprint, where it is not the team's
+    default (#269).
+
+    No row means the default, in proportion to the sprint's working days.
+    `days_off` takes days away from that; a capacity set by hand replaces it,
+    in its own unit only -- null in either unit is still worked out. Leave
+    (#248) and public holidays (#250) will feed the days away when they exist.
+    """
+
+    sprint_id: int = Field(foreign_key="sprint.id", primary_key=True)
+    user_id: int = Field(foreign_key="user.id", primary_key=True, index=True)
+    days_off: int = Field(default=0)
+    points: Optional[int] = None
+    minutes: Optional[int] = None
 
 
 class TicketEvent(SQLModel, table=True):
@@ -2364,7 +2443,28 @@ class InstanceSettings(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     team_creation: TeamCreationPolicy = Field(default=TeamCreationPolicy.anyone)
+    #: Employment types finance has put on payroll besides employees (#320),
+    #: read through `lib_finance.on_payroll`. Never `external`.
+    payroll_types: list[str] = Field(
+        default_factory=list, sa_column=Column(JSONValue, nullable=False)
+    )
     updated_at: datetime = Field(default_factory=utcnow)
+
+
+class RetiredTeamKey(SQLModel, table=True):
+    """The key of a deleted team that had given out identifiers (#322).
+
+    A team is deleted only when it has no tickets, but it may have had them:
+    moved to another team, or purged from the trash. `ENG-42` is then still
+    in commit messages, chat logs and a "Moved from ENG-42" comment, and a
+    new team keyed ENG would make it point at somebody else's work -- the
+    reason a key cannot be changed, and an archived team's cannot be reused.
+    A team deleted before its first ticket left no identifier anywhere, and
+    its key is free again.
+    """
+
+    key: str = Field(primary_key=True)
+    retired_at: datetime = Field(default_factory=utcnow)
 
 
 class TeamCreator(SQLModel, table=True):

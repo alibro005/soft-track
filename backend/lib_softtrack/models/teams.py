@@ -1,10 +1,11 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from lib_identity.models.identity import UserPublic
-from lib_softtrack.tables import TeamRole
+from lib_softtrack.models.capacity import MAX_CAPACITY_POINTS
+from lib_softtrack.tables import EstimateUnit, TeamRole
 
 
 class TeamCreate(BaseModel):
@@ -28,13 +29,28 @@ class TeamRead(BaseModel):
     #: sub-tickets count against it.
     wip_limits_hard: bool = False
     wip_counts_subtickets: bool = True
+    #: What the team estimates in (#268): points, hours or both.
+    estimate_unit: EstimateUnit = EstimateUnit.points
+    #: What one person can take in a sprint, by default (#269): points for a
+    #: whole sprint, and minutes for each working day.
+    capacity_points: int = 10
+    capacity_minutes_per_day: int = 6 * 60
     #: Who can find the team (#259): whether it is in the team directory, and
     #: whether anybody signed in may join it without asking.
     listed: bool = True
     open_to_join: bool = False
+    #: When the team was archived (#307, #322), or null. An archived team is
+    #: read-only. `archived` says the same as a yes or no, worked out from it.
+    archived_at: Optional[datetime] = None
+    archived: bool = False
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def _archived_from_archived_at(self) -> "TeamRead":
+        self.archived = self.archived_at is not None
+        return self
 
 
 class TeamUpdate(BaseModel):
@@ -56,9 +72,39 @@ class TeamUpdate(BaseModel):
     #: WIP limits (#270): refuse a move over one, and count sub-tickets.
     wip_limits_hard: Optional[bool] = None
     wip_counts_subtickets: Optional[bool] = None
+    #: Points, hours or both (#268). Points is the default.
+    estimate_unit: Optional[EstimateUnit] = None
+    #: The capacity each person starts from in a sprint (#269).
+    capacity_points: Optional[int] = Field(default=None, ge=0, le=MAX_CAPACITY_POINTS)
+    capacity_minutes_per_day: Optional[int] = Field(default=None, ge=0, le=24 * 60)
     #: Who can find the team (#259). Listed is the default; open is not.
     listed: Optional[bool] = None
     open_to_join: Optional[bool] = None
+    #: Archive the team, or put it back (#322); stored as `Team.archived_at`.
+    #: An archived team takes nothing else until it is unarchived.
+    archived: Optional[bool] = None
+
+
+class TeamArchivePreview(BaseModel):
+    """What archiving a team stops and what it leaves (#322), counted before
+    anything happens, and what keeps it from being deleted instead.
+
+    The four that stop are the ones that would otherwise act on their own:
+    enabled automation rules, enabled outgoing webhooks, connected
+    repositories and recurring tickets that are not paused.
+    """
+
+    #: Everybody on the team, guests too: it becomes read-only for all of them.
+    members: int
+    automation_rules: int
+    webhooks: int
+    repository_links: int
+    recurring_tickets: int
+    #: Open tickets, out of the trash: they stay open and assigned.
+    open_tickets: int
+    #: Every ticket, the trash included -- the count `DELETE /teams/{id}`
+    #: needs to be zero.
+    tickets: int
 
 
 class EpicRef(BaseModel):

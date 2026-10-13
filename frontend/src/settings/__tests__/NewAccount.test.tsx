@@ -83,6 +83,7 @@ const YUKI: AdminUserRead = {
   is_site_admin: false,
   is_finance_admin: false,
   has_password: false,
+  totp_enabled: false,
   created_at: '2026-09-29T09:00:00',
   last_login_at: null,
   team_count: 1,

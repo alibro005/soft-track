@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DepartmentRef } from './departmentRef';
+import type { EmploymentType } from './employmentType';
 import type { GuestOf } from './guestOf';
 import type { PersonRef } from './personRef';
 import type { WelcomeLinkRead } from './welcomeLinkRead';
@@ -26,6 +27,8 @@ export interface AdminUserRead {
   is_finance_admin: boolean;
   has_password: boolean;
   created_at: string;
+  totp_enabled: boolean;
+  employment_type?: EmploymentType | null;
   job_title?: string | null;
   location?: string | null;
   started_on?: string | null;

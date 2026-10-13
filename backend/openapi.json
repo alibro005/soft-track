@@ -75,12 +75,65 @@
           "auth"
         ],
         "summary": "Login",
+        "description": "Password step of login.\n\nReturns a full `Token` (200) for users without TOTP, or a\n`TotpLoginPending` (202) when TOTP is enabled -- the client must then call\nPOST /auth/totp/verify to complete the login.",
         "operationId": "login_auth_login_post",
         "requestBody": {
           "content": {
             "application/x-www-form-urlencoded": {
               "schema": {
                 "$ref": "#/components/schemas/Body_login_auth_login_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Two-factor code required: POST it to /auth/totp/verify",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpLoginPending"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/totp/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Totp Verify",
+        "description": "Second step of signing in, for an account with two-factor on.\n\nTakes the `pending_token` a first factor answered with and a code from\nthe authenticator -- or one of the recovery codes. This is where the\nsession starts (#308), and where a new browser is emailed about.",
+        "operationId": "totp_verify_auth_totp_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TotpVerifyRequest"
               }
             }
           },
@@ -178,6 +231,127 @@
             }
           }
         }
+      }
+    },
+    "/auth/totp/enrol": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Totp Enrol",
+        "description": "Start setting up an authenticator app. Nothing changes until confirmed.",
+        "operationId": "totp_enrol_auth_totp_enrol_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpEnrolmentStart"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/auth/totp/confirm": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Totp Confirm",
+        "description": "Turn two-factor on with a first code from the authenticator.\n\nReturns the recovery codes -- the only time they are shown -- and a fresh\ntoken for this session, which is kept while every other one ends.",
+        "operationId": "totp_confirm_auth_totp_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TotpCode"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpEnrolmentResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/auth/totp/disable": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Totp Disable",
+        "description": "Turn two-factor off with a live code or a recovery code.\n\nReturns a fresh token for this session, which is kept while every other\none ends.",
+        "operationId": "totp_disable_auth_totp_disable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TotpCode"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
       }
     },
     "/auth/me": {
@@ -569,7 +743,7 @@
           "auth"
         ],
         "summary": "Exchange Ticket",
-        "description": "Redeem a finished sign-in for a session.\n\nDeliberately unauthenticated and deliberately a POST: the ticket and the\nhandshake together are the credential, and neither belongs in a URL.",
+        "description": "Redeem a finished sign-in for a session.\n\nDeliberately unauthenticated and deliberately a POST: the ticket and the\nhandshake together are the credential, and neither belongs in a URL.\nFor an account with two-factor on, the answer is a 202 asking for the\ncode, exactly as `/auth/login` gives.",
         "operationId": "exchange_ticket_auth_oauth_exchange_post",
         "requestBody": {
           "content": {
@@ -583,11 +757,21 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Signed in",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Two-factor code required: POST it to /auth/totp/verify",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpLoginPending"
                 }
               }
             }
@@ -1479,6 +1663,47 @@
         }
       }
     },
+    "/admin/users/{user_id}/clear-totp": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Clear Totp",
+        "description": "Turn two-factor off for an account, and sign it out everywhere.",
+        "operationId": "clear_totp_admin_users__user_id__clear_totp_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/departments": {
       "get": {
         "tags": [
@@ -2269,6 +2494,45 @@
           }
         }
       },
+      "delete": {
+        "tags": [
+          "teams"
+        ],
+        "summary": "Delete Team",
+        "description": "Delete a team with no tickets, the trash included (#322): one made to\ntry the product, or by mistake. Archived or not. Its admins, and site\nadmins; a team with work in it is archived instead.",
+        "operationId": "delete_team_teams__team_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "tags": [
           "teams"
@@ -2308,6 +2572,54 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TeamRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{team_id}/archive-preview": {
+      "get": {
+        "tags": [
+          "teams"
+        ],
+        "summary": "Archive Preview",
+        "description": "What archiving the team stops and what it leaves (#322), counted for\nthe dialog that asks first, and how many tickets keep it from being\ndeleted. Its admins, and site admins.",
+        "operationId": "archive_preview_teams__team_id__archive_preview_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamArchivePreview"
                 }
               }
             }
@@ -6638,6 +6950,112 @@
         }
       }
     },
+    "/sprints/{sprint_id}/plan": {
+      "get": {
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Sprint Plan",
+        "description": "What each person can take in the sprint against what they have (#269).\n\nA row per person who can be assigned the team's work -- not guests --\nwith their capacity in points and in hours, a row for unassigned tickets,\nthe scope beside the capacity, and the last three completed sprints'\ndelivery as a line to plan against. Over capacity is shown, never refused.\nAn account from outside the organisation is refused: it is about people.",
+        "operationId": "sprint_plan_sprints__sprint_id__plan_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sprint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Sprint Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SprintPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sprints/{sprint_id}/capacity": {
+      "put": {
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Set Capacity",
+        "description": "Set people's capacity in the sprint: the days they are away, and a\ncapacity by hand in points or in minutes. Fields left out are left as\nthey are; a capacity sent as null goes back to the team's default.",
+        "operationId": "set_capacity_sprints__sprint_id__capacity_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sprint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Sprint Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CapacityUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SprintPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/sprints/{sprint_id}/burndown": {
       "get": {
         "tags": [
@@ -9551,6 +9969,701 @@
         }
       }
     },
+    "/me/worklogs": {
+      "get": {
+        "tags": [
+          "timesheet"
+        ],
+        "summary": "My Timesheet",
+        "description": "My time, a row per ticket and a column per day, across every team I\nam on (#267): the totals per day and for the range, and which days are\nmarked -- a weekday with nothing logged, and a long one.",
+        "operationId": "my_timesheet_me_worklogs_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The first day. Omitted, this week's Monday in the instance's timezone.",
+              "title": "From"
+            },
+            "description": "The first day. Omitted, this week's Monday in the instance's timezone."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The last day, included. Omitted, six days after `from`.",
+              "title": "To"
+            },
+            "description": "The last day, included. Omitted, six days after `from`."
+          },
+          {
+            "name": "ticket_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "description": "Tickets added to the week by searching, shown with nothing logged yet.",
+              "default": [],
+              "title": "Ticket Id"
+            },
+            "description": "Tickets added to the week by searching, shown with nothing logged yet."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyTimesheet"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/worklogs/export": {
+      "get": {
+        "tags": [
+          "timesheet"
+        ],
+        "summary": "Export My Timesheet",
+        "description": "My time over a range, as CSV: one line per entry.",
+        "operationId": "export_my_timesheet_me_worklogs_export_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The first day. Omitted, this week's Monday in the instance's timezone.",
+              "title": "From"
+            },
+            "description": "The first day. Omitted, this week's Monday in the instance's timezone."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The last day, included. Omitted, six days after `from`.",
+              "title": "To"
+            },
+            "description": "The last day, included. Omitted, six days after `from`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/csv": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tickets/{ticket_id}/worklogs/days/{worked_on}": {
+      "put": {
+        "tags": [
+          "timesheet"
+        ],
+        "summary": "Set My Day",
+        "description": "Make my time on the ticket on that day come to `minutes`, as typing in\na timesheet cell does. Logs, changes or removes my entries for the day\nthe way the ticket's Time section would; 0 removes them.",
+        "operationId": "set_my_day_tickets__ticket_id__worklogs_days__worked_on__put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Ticket Id"
+            }
+          },
+          {
+            "name": "worked_on",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Worked On"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimesheetDaySet"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimesheetCell"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/reports/worklogs": {
+      "get": {
+        "tags": [
+          "timesheet"
+        ],
+        "summary": "Reports Timesheet",
+        "description": "My direct reports' time, a row each -- on the teams I am on too, and\non no other.",
+        "operationId": "reports_timesheet_me_reports_worklogs_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The first day. Omitted, this week's Monday in the instance's timezone.",
+              "title": "From"
+            },
+            "description": "The first day. Omitted, this week's Monday in the instance's timezone."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The last day, included. Omitted, six days after `from`.",
+              "title": "To"
+            },
+            "description": "The last day, included. Omitted, six days after `from`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeopleTimesheet"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/reports/worklogs/export": {
+      "get": {
+        "tags": [
+          "timesheet"
+        ],
+        "summary": "Export Reports Timesheet",
+        "description": "My reports' time over a range, as CSV: one line per entry.",
+        "operationId": "export_reports_timesheet_me_reports_worklogs_export_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The first day. Omitted, this week's Monday in the instance's timezone.",
+              "title": "From"
+            },
+            "description": "The first day. Omitted, this week's Monday in the instance's timezone."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The last day, included. Omitted, six days after `from`.",
+              "title": "To"
+            },
+            "description": "The last day, included. Omitted, six days after `from`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/csv": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{team_id}/worklogs": {
+      "get": {
+        "tags": [
+          "timesheet"
+        ],
+        "summary": "Team Timesheet",
+        "description": "A team's week, for its admins: a row per person, their time on the\nteam's tickets.",
+        "operationId": "team_timesheet_teams__team_id__worklogs_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The first day. Omitted, this week's Monday in the instance's timezone.",
+              "title": "From"
+            },
+            "description": "The first day. Omitted, this week's Monday in the instance's timezone."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The last day, included. Omitted, six days after `from`.",
+              "title": "To"
+            },
+            "description": "The last day, included. Omitted, six days after `from`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeopleTimesheet"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/teams/{team_id}/worklogs/export": {
+      "get": {
+        "tags": [
+          "timesheet"
+        ],
+        "summary": "Export Team Timesheet",
+        "description": "The team's time over a range, as CSV, for its admins.",
+        "operationId": "export_team_timesheet_teams__team_id__worklogs_export_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The first day. Omitted, this week's Monday in the instance's timezone.",
+              "title": "From"
+            },
+            "description": "The first day. Omitted, this week's Monday in the instance's timezone."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The last day, included. Omitted, six days after `from`.",
+              "title": "To"
+            },
+            "description": "The last day, included. Omitted, six days after `from`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/csv": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tickets/{ticket_id}/time-estimate": {
+      "get": {
+        "tags": [
+          "time estimates"
+        ],
+        "summary": "Ticket Time Estimate",
+        "description": "The ticket's time estimate against what is logged and what is left,\non its own and with its sub-tickets (#268).",
+        "operationId": "ticket_time_estimate_tickets__ticket_id__time_estimate_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "ticket_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Ticket Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketTimeEstimate"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sprints/{sprint_id}/time": {
+      "get": {
+        "tags": [
+          "time estimates"
+        ],
+        "summary": "Sprint Time",
+        "description": "Estimated, logged and remaining time across the sprint, and the\ntickets in it that are over their estimate.",
+        "operationId": "sprint_time_sprints__sprint_id__time_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sprint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Sprint Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeRollup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/time": {
+      "get": {
+        "tags": [
+          "time estimates"
+        ],
+        "summary": "Project Time",
+        "description": "Estimated, logged and remaining time across the epic, and the tickets\nin it that are over their estimate.",
+        "operationId": "project_time_projects__project_id__time_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeRollup"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/users/{username}/workload": {
       "get": {
         "tags": [
@@ -11283,7 +12396,7 @@
           "compensation"
         ],
         "summary": "List Compensation",
-        "description": "Everybody active and what they are paid today, with totals per currency\nand pay schedule over everybody the filters match. People with nothing in\neffect come last, and are counted in `missing`.",
+        "description": "Everybody on payroll (#320) and what they are paid today, with totals\nper currency and pay schedule over everybody the filters match. People\nwith nothing in effect come last, and are counted in `missing`; the\naccounts that are not on payroll are counted and named beside them.",
         "operationId": "list_compensation_finance_compensation_get",
         "security": [
           {
@@ -11947,6 +13060,78 @@
             }
           }
         }
+      }
+    },
+    "/finance/payroll/types": {
+      "get": {
+        "tags": [
+          "payroll"
+        ],
+        "summary": "Get Payroll Types",
+        "description": "The employment types on payroll besides employees (#320).",
+        "operationId": "get_payroll_types_finance_payroll_types_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollTypes"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "payroll"
+        ],
+        "summary": "Set Payroll Types",
+        "description": "Put contractors, interns or service accounts on payroll, or take them\noff. Drafts follow at once; approved runs do not change.",
+        "operationId": "set_payroll_types_finance_payroll_types_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayrollTypes"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollTypes"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
       }
     },
     "/expenses": {
@@ -13833,6 +15018,20 @@
             "format": "date-time",
             "title": "Created At"
           },
+          "totp_enabled": {
+            "type": "boolean",
+            "title": "Totp Enabled"
+          },
+          "employment_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "job_title": {
             "anyOf": [
               {
@@ -13965,6 +15164,7 @@
           "is_finance_admin",
           "has_password",
           "created_at",
+          "totp_enabled",
           "team_count",
           "report_count"
         ],
@@ -14034,6 +15234,16 @@
               }
             ],
             "title": "Is External"
+          },
+          "employment_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "full_name": {
             "anyOf": [
@@ -15278,6 +16488,22 @@
           "ideal_remaining": {
             "type": "number",
             "title": "Ideal Remaining"
+          },
+          "minutes_remaining": {
+            "type": "integer",
+            "title": "Minutes Remaining"
+          },
+          "minutes_total": {
+            "type": "integer",
+            "title": "Minutes Total"
+          },
+          "minutes_logged": {
+            "type": "integer",
+            "title": "Minutes Logged"
+          },
+          "ideal_minutes_remaining": {
+            "type": "number",
+            "title": "Ideal Minutes Remaining"
           }
         },
         "type": "object",
@@ -15287,9 +16513,83 @@
           "tickets_remaining",
           "points_completed",
           "points_total",
-          "ideal_remaining"
+          "ideal_remaining",
+          "minutes_remaining",
+          "minutes_total",
+          "minutes_logged",
+          "ideal_minutes_remaining"
         ],
         "title": "BurndownPoint"
+      },
+      "CapacityChange": {
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "title": "User Id"
+          },
+          "days_off": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 366.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Off"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "CapacityChange",
+        "description": "One person's capacity in the sprint. A field left out is left as it\nis; a capacity sent as null goes back to the team's default."
+      },
+      "CapacityUpdate": {
+        "properties": {
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/CapacityChange"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "People"
+          }
+        },
+        "type": "object",
+        "required": [
+          "people"
+        ],
+        "title": "CapacityUpdate"
       },
       "ChannelSetting": {
         "properties": {
@@ -15844,6 +17144,17 @@
           "missing": {
             "type": "integer",
             "title": "Missing"
+          },
+          "on_payroll": {
+            "type": "integer",
+            "title": "On Payroll"
+          },
+          "not_on_payroll": {
+            "items": {
+              "$ref": "#/components/schemas/NotOnPayroll"
+            },
+            "type": "array",
+            "title": "Not On Payroll"
           }
         },
         "type": "object",
@@ -15853,7 +17164,9 @@
           "limit",
           "offset",
           "totals",
-          "missing"
+          "missing",
+          "on_payroll",
+          "not_on_payroll"
         ],
         "title": "CompensationPage"
       },
@@ -16548,6 +17861,40 @@
         "title": "DefaultViewUpdate",
         "description": "Null clears the default rather than setting one."
       },
+      "DeliveredSprint": {
+        "properties": {
+          "sprint_id": {
+            "type": "integer",
+            "title": "Sprint Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "points_planned": {
+            "type": "integer",
+            "title": "Points Planned"
+          },
+          "points_delivered": {
+            "type": "integer",
+            "title": "Points Delivered"
+          },
+          "minutes_delivered": {
+            "type": "integer",
+            "title": "Minutes Delivered"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sprint_id",
+          "display_name",
+          "points_planned",
+          "points_delivered",
+          "minutes_delivered"
+        ],
+        "title": "DeliveredSprint",
+        "description": "One of the last completed sprints: what it held when it started, and\nwhat was done in it."
+      },
       "DepartmentCreate": {
         "properties": {
           "name": {
@@ -16690,6 +18037,18 @@
         "title": "DueFilter",
         "description": "The due-date questions the board can be narrowed to (#87).\n\nThree questions rather than a date range: they are what a standup asks,\nand \"this week\" means the viewer's week -- the client sends its own\ntoday, so a filter saved on a Sunday evening in Sydney does not quietly\nmean London's Sunday."
       },
+      "EmploymentType": {
+        "type": "string",
+        "enum": [
+          "employee",
+          "contractor",
+          "intern",
+          "external",
+          "service_account"
+        ],
+        "title": "EmploymentType",
+        "description": "What kind of account or engagement somebody has with the organisation\n(#247, #320).\n\nAn account with no type, or an employee, is on payroll. The others are on\npayroll only when finance switches their type on\n(`InstanceSettings.payroll_types`) -- except external, which never is."
+      },
       "EpicRef": {
         "properties": {
           "id": {
@@ -16752,6 +18111,16 @@
           "by_assignee"
         ],
         "title": "EstimateSummary"
+      },
+      "EstimateUnit": {
+        "type": "string",
+        "enum": [
+          "points",
+          "hours",
+          "both"
+        ],
+        "title": "EstimateUnit",
+        "description": "What a team estimates in (#268): story points, hours, or both.\n\nPoints is the default, and a team that leaves it sees no change. There is\nno conversion between the two: points say how big a piece of work is,\nhours what it was meant to cost, and a team may ask both."
       },
       "ExpenseCreate": {
         "properties": {
@@ -17842,6 +19211,72 @@
         "title": "MyJoinRequest",
         "description": "Your own request to join a team (#259), as the directory shows it."
       },
+      "MyTimesheet": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today"
+          },
+          "long_day_minutes": {
+            "type": "integer",
+            "title": "Long Day Minutes"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/TimesheetDay"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          },
+          "tickets": {
+            "items": {
+              "$ref": "#/components/schemas/TimesheetTicketRow"
+            },
+            "type": "array",
+            "title": "Tickets"
+          },
+          "teams_i_run": {
+            "items": {
+              "$ref": "#/components/schemas/SharedTeam"
+            },
+            "type": "array",
+            "title": "Teams I Run"
+          },
+          "has_reports": {
+            "type": "boolean",
+            "title": "Has Reports"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "today",
+          "long_day_minutes",
+          "days",
+          "minutes",
+          "tickets",
+          "teams_i_run",
+          "has_reports"
+        ],
+        "title": "MyTimesheet",
+        "description": "My time (#267): a row per ticket, across every team I am on."
+      },
       "MyWorkCounts": {
         "properties": {
           "assigned": {
@@ -18099,6 +19534,29 @@
           "name"
         ],
         "title": "NamedRef"
+      },
+      "NotOnPayroll": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/EmploymentType"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "reason"
+        ],
+        "title": "NotOnPayroll",
+        "description": "An active account that is not on payroll (#320), and why: its\nemployment type, or `external` for an account from outside."
       },
       "NotificationChannel": {
         "type": "string",
@@ -18640,6 +20098,55 @@
         },
         "type": "object",
         "title": "OutboundWebhookUpdate"
+      },
+      "OverTicket": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "team_key": {
+            "type": "string",
+            "title": "Team Key"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "estimated_minutes": {
+            "type": "integer",
+            "title": "Estimated Minutes"
+          },
+          "logged_minutes": {
+            "type": "integer",
+            "title": "Logged Minutes"
+          },
+          "remaining_minutes": {
+            "type": "integer",
+            "title": "Remaining Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "team_key",
+          "number",
+          "identifier",
+          "title",
+          "estimated_minutes",
+          "logged_minutes",
+          "remaining_minutes"
+        ],
+        "title": "OverTicket",
+        "description": "A ticket that has had more time logged than it was estimated at."
       },
       "Page_AdminTeamRead_": {
         "properties": {
@@ -19504,6 +21011,13 @@
             },
             "type": "array",
             "title": "Reimbursements"
+          },
+          "left_off": {
+            "items": {
+              "$ref": "#/components/schemas/NotOnPayroll"
+            },
+            "type": "array",
+            "title": "Left Off"
           }
         },
         "type": "object",
@@ -19520,7 +21034,8 @@
           "missing_count",
           "reimbursement_totals",
           "lines",
-          "reimbursements"
+          "reimbursements",
+          "left_off"
         ],
         "title": "PayrollRunRead"
       },
@@ -19670,6 +21185,23 @@
         "title": "PayrollTotal",
         "description": "The lines paid in one currency, summed. Never across currencies."
       },
+      "PayrollTypes": {
+        "properties": {
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/EmploymentType"
+            },
+            "type": "array",
+            "title": "Types"
+          }
+        },
+        "type": "object",
+        "required": [
+          "types"
+        ],
+        "title": "PayrollTypes",
+        "description": "The employment types on payroll besides employees (#320). Only\ncontractor, intern and service_account can be: an employee always is,\nand an account from outside never is."
+      },
       "PeoplePage": {
         "properties": {
           "items": {
@@ -19710,6 +21242,127 @@
           "offset"
         ],
         "title": "PeoplePage"
+      },
+      "PeopleTimesheet": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today"
+          },
+          "long_day_minutes": {
+            "type": "integer",
+            "title": "Long Day Minutes"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/TimesheetDay"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          },
+          "team": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SharedTeam"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/TimesheetPersonRow"
+            },
+            "type": "array",
+            "title": "People"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "today",
+          "long_day_minutes",
+          "days",
+          "minutes",
+          "people"
+        ],
+        "title": "PeopleTimesheet",
+        "description": "A team's week, or a manager's reports: a row per person."
+      },
+      "PersonCapacity": {
+        "properties": {
+          "person": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "days_here": {
+            "type": "integer",
+            "title": "Days Here"
+          },
+          "days_off": {
+            "type": "integer",
+            "title": "Days Off"
+          },
+          "tickets": {
+            "type": "integer",
+            "title": "Tickets"
+          },
+          "points_assigned": {
+            "type": "integer",
+            "title": "Points Assigned"
+          },
+          "points_capacity": {
+            "type": "integer",
+            "title": "Points Capacity"
+          },
+          "points_set": {
+            "type": "boolean",
+            "title": "Points Set"
+          },
+          "minutes_assigned": {
+            "type": "integer",
+            "title": "Minutes Assigned"
+          },
+          "minutes_capacity": {
+            "type": "integer",
+            "title": "Minutes Capacity"
+          },
+          "minutes_set": {
+            "type": "boolean",
+            "title": "Minutes Set"
+          }
+        },
+        "type": "object",
+        "required": [
+          "person",
+          "days_here",
+          "days_off",
+          "tickets",
+          "points_assigned",
+          "points_capacity",
+          "points_set",
+          "minutes_assigned",
+          "minutes_capacity",
+          "minutes_set"
+        ],
+        "title": "PersonCapacity",
+        "description": "One person's row: what is assigned to them in the sprint against what\nthey can take.\n\nCapacity is the team's default in proportion to the days they are here,\nin each unit, unless somebody set it by hand for this sprint. Assigned\ncounts every ticket in the sprint, done ones too: the plan is the whole\nsprint's."
       },
       "PersonRead": {
         "properties": {
@@ -19865,6 +21518,41 @@
           "minutes"
         ],
         "title": "PersonTime"
+      },
+      "PlanSprint": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SprintState"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "starts_at",
+          "ends_at",
+          "state"
+        ],
+        "title": "PlanSprint",
+        "description": "The sprint being planned, as the view's heading names it."
       },
       "ProfileRead": {
         "properties": {
@@ -21920,6 +23608,9 @@
           "priority": {
             "$ref": "#/components/schemas/TicketPriority"
           },
+          "type": {
+            "$ref": "#/components/schemas/TicketType"
+          },
           "team_id": {
             "type": "integer",
             "title": "Team Id"
@@ -21953,6 +23644,7 @@
           "title",
           "status",
           "priority",
+          "type",
           "team_id",
           "team_key",
           "number",
@@ -22766,6 +24458,30 @@
         ],
         "title": "SprintCreate"
       },
+      "SprintLoad": {
+        "properties": {
+          "tickets": {
+            "type": "integer",
+            "title": "Tickets"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tickets",
+          "points",
+          "minutes"
+        ],
+        "title": "SprintLoad",
+        "description": "Tickets in the sprint that are on nobody's plate -- or on the plate of\nsomebody who has no capacity here."
+      },
       "SprintOutcome": {
         "type": "string",
         "enum": [
@@ -22775,6 +24491,104 @@
         ],
         "title": "SprintOutcome",
         "description": "Whether a sprint's goal was met (#271), said when it is completed."
+      },
+      "SprintPlan": {
+        "properties": {
+          "sprint": {
+            "$ref": "#/components/schemas/PlanSprint"
+          },
+          "estimate_unit": {
+            "$ref": "#/components/schemas/EstimateUnit"
+          },
+          "working_days": {
+            "type": "integer",
+            "title": "Working Days"
+          },
+          "default_points": {
+            "type": "integer",
+            "title": "Default Points"
+          },
+          "default_minutes_per_day": {
+            "type": "integer",
+            "title": "Default Minutes Per Day"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/PersonCapacity"
+            },
+            "type": "array",
+            "title": "People"
+          },
+          "unassigned": {
+            "$ref": "#/components/schemas/SprintLoad"
+          },
+          "elsewhere": {
+            "$ref": "#/components/schemas/SprintLoad"
+          },
+          "scope_points": {
+            "type": "integer",
+            "title": "Scope Points"
+          },
+          "capacity_points": {
+            "type": "integer",
+            "title": "Capacity Points"
+          },
+          "scope_minutes": {
+            "type": "integer",
+            "title": "Scope Minutes"
+          },
+          "capacity_minutes": {
+            "type": "integer",
+            "title": "Capacity Minutes"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveredSprint"
+            },
+            "type": "array",
+            "title": "History"
+          },
+          "average_points": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Points"
+          },
+          "average_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sprint",
+          "estimate_unit",
+          "working_days",
+          "default_points",
+          "default_minutes_per_day",
+          "people",
+          "unassigned",
+          "elsewhere",
+          "scope_points",
+          "capacity_points",
+          "scope_minutes",
+          "capacity_minutes",
+          "history"
+        ],
+        "title": "SprintPlan",
+        "description": "A sprint's plan (#269): a row per person who can be assigned the team's\nwork, a row for what is unassigned, the sprint's scope beside its\ncapacity, and the last three sprints as a line to plan against.\n\nGuests have no capacity and no row. Everything is in both units; the\nteam's `estimate_unit` says which to show."
       },
       "SprintProgress": {
         "properties": {
@@ -23196,6 +25010,97 @@
         "type": "object",
         "title": "StatusUpdate"
       },
+      "TeamArchivePreview": {
+        "properties": {
+          "members": {
+            "type": "integer",
+            "title": "Members"
+          },
+          "automation_rules": {
+            "type": "integer",
+            "title": "Automation Rules"
+          },
+          "webhooks": {
+            "type": "integer",
+            "title": "Webhooks"
+          },
+          "repository_links": {
+            "type": "integer",
+            "title": "Repository Links"
+          },
+          "recurring_tickets": {
+            "type": "integer",
+            "title": "Recurring Tickets"
+          },
+          "open_tickets": {
+            "type": "integer",
+            "title": "Open Tickets"
+          },
+          "tickets": {
+            "type": "integer",
+            "title": "Tickets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "members",
+          "automation_rules",
+          "webhooks",
+          "repository_links",
+          "recurring_tickets",
+          "open_tickets",
+          "tickets"
+        ],
+        "title": "TeamArchivePreview",
+        "description": "What archiving a team stops and what it leaves (#322), counted before\nanything happens, and what keeps it from being deleted instead.\n\nThe four that stop are the ones that would otherwise act on their own:\nenabled automation rules, enabled outgoing webhooks, connected\nrepositories and recurring tickets that are not paused."
+      },
+      "TeamCapacity": {
+        "properties": {
+          "team": {
+            "$ref": "#/components/schemas/SharedTeam"
+          },
+          "sprint_id": {
+            "type": "integer",
+            "title": "Sprint Id"
+          },
+          "sprint": {
+            "type": "string",
+            "title": "Sprint"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/EstimateUnit"
+          },
+          "points_assigned": {
+            "type": "integer",
+            "title": "Points Assigned"
+          },
+          "points_capacity": {
+            "type": "integer",
+            "title": "Points Capacity"
+          },
+          "minutes_assigned": {
+            "type": "integer",
+            "title": "Minutes Assigned"
+          },
+          "minutes_capacity": {
+            "type": "integer",
+            "title": "Minutes Capacity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team",
+          "sprint_id",
+          "sprint",
+          "unit",
+          "points_assigned",
+          "points_capacity",
+          "minutes_assigned",
+          "minutes_capacity"
+        ],
+        "title": "TeamCapacity",
+        "description": "Somebody's capacity on one team, in the sprint it is planning: what the\nworkload tab shows for each team (#269)."
+      },
       "TeamCreate": {
         "properties": {
           "name": {
@@ -23609,6 +25514,20 @@
             "title": "Wip Counts Subtickets",
             "default": true
           },
+          "estimate_unit": {
+            "$ref": "#/components/schemas/EstimateUnit",
+            "default": "points"
+          },
+          "capacity_points": {
+            "type": "integer",
+            "title": "Capacity Points",
+            "default": 10
+          },
+          "capacity_minutes_per_day": {
+            "type": "integer",
+            "title": "Capacity Minutes Per Day",
+            "default": 360
+          },
           "listed": {
             "type": "boolean",
             "title": "Listed",
@@ -23617,6 +25536,23 @@
           "open_to_join": {
             "type": "boolean",
             "title": "Open To Join",
+            "default": false
+          },
+          "archived_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived",
             "default": false
           },
           "created_at": {
@@ -23835,6 +25771,42 @@
             ],
             "title": "Wip Counts Subtickets"
           },
+          "estimate_unit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EstimateUnit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "capacity_points": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity Points"
+          },
+          "capacity_minutes_per_day": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1440.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity Minutes Per Day"
+          },
           "listed": {
             "anyOf": [
               {
@@ -23856,6 +25828,17 @@
               }
             ],
             "title": "Open To Join"
+          },
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived"
           }
         },
         "type": "object",
@@ -24152,7 +26135,9 @@
           "team",
           "custom_field",
           "trash",
-          "schedule"
+          "schedule",
+          "time_estimate",
+          "remaining"
         ],
         "title": "TicketEventField",
         "description": "Which field a TicketEvent records a change to."
@@ -24488,6 +26473,28 @@
             ],
             "title": "Estimate"
           },
+          "time_estimate_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Estimate Minutes"
+          },
+          "remaining_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Minutes"
+          },
           "blocked_by_count": {
             "type": "integer",
             "title": "Blocked By Count"
@@ -24774,6 +26781,56 @@
         "title": "TicketTime",
         "description": "Everything the ticket panel shows about time spent on one ticket."
       },
+      "TicketTimeEstimate": {
+        "properties": {
+          "estimated_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Minutes"
+          },
+          "logged_minutes": {
+            "type": "integer",
+            "title": "Logged Minutes"
+          },
+          "remaining_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Minutes"
+          },
+          "remaining_set": {
+            "type": "boolean",
+            "title": "Remaining Set"
+          },
+          "total": {
+            "$ref": "#/components/schemas/TimeTotals"
+          },
+          "subticket_count": {
+            "type": "integer",
+            "title": "Subticket Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "logged_minutes",
+          "remaining_set",
+          "total",
+          "subticket_count"
+        ],
+        "title": "TicketTimeEstimate",
+        "description": "One ticket's estimate against what is logged on it.\n\nThe ticket's own figures are what logging time on it works from; the\ntotals add its sub-tickets, one level deep, and are what its bar shows."
+      },
       "TicketTransfer": {
         "properties": {
           "team_id": {
@@ -24929,6 +26986,34 @@
             ],
             "title": "Due Date"
           },
+          "time_estimate_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Estimate Minutes",
+            "description": "Minutes. Null means no time estimate."
+          },
+          "remaining_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Minutes",
+            "description": "Minutes left, set by hand. Null means worked out: the time estimate less what is logged."
+          },
           "label_ids": {
             "anyOf": [
               {
@@ -24984,6 +27069,38 @@
         "type": "object",
         "title": "TicketUpdate"
       },
+      "TimeRollup": {
+        "properties": {
+          "estimated_minutes": {
+            "type": "integer",
+            "title": "Estimated Minutes"
+          },
+          "logged_minutes": {
+            "type": "integer",
+            "title": "Logged Minutes"
+          },
+          "remaining_minutes": {
+            "type": "integer",
+            "title": "Remaining Minutes"
+          },
+          "over": {
+            "items": {
+              "$ref": "#/components/schemas/OverTicket"
+            },
+            "type": "array",
+            "title": "Over"
+          }
+        },
+        "type": "object",
+        "required": [
+          "estimated_minutes",
+          "logged_minutes",
+          "remaining_minutes",
+          "over"
+        ],
+        "title": "TimeRollup",
+        "description": "A sprint's or an epic's time: its totals, and the tickets that are over."
+      },
       "TimeSpent": {
         "properties": {
           "total_minutes": {
@@ -25006,6 +27123,217 @@
         "title": "TimeSpent",
         "description": "A rollup for a report: how much time, and whose (#102)."
       },
+      "TimeTotals": {
+        "properties": {
+          "estimated_minutes": {
+            "type": "integer",
+            "title": "Estimated Minutes"
+          },
+          "logged_minutes": {
+            "type": "integer",
+            "title": "Logged Minutes"
+          },
+          "remaining_minutes": {
+            "type": "integer",
+            "title": "Remaining Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "estimated_minutes",
+          "logged_minutes",
+          "remaining_minutes"
+        ],
+        "title": "TimeTotals",
+        "description": "Estimated, logged and remaining minutes over some tickets.\n\nLogged is every minute logged on them, estimated or not. Remaining is\nover the tickets that have a time estimate or a remaining set by hand,\nand is nothing for a ticket that is done or cancelled."
+      },
+      "TimesheetCell": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "minutes"
+        ],
+        "title": "TimesheetCell",
+        "description": "One row's time on one day."
+      },
+      "TimesheetDay": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          },
+          "nothing_logged": {
+            "type": "boolean",
+            "title": "Nothing Logged",
+            "default": false
+          },
+          "over": {
+            "type": "boolean",
+            "title": "Over",
+            "default": false
+          },
+          "people_without_time": {
+            "items": {
+              "$ref": "#/components/schemas/PersonRef"
+            },
+            "type": "array",
+            "title": "People Without Time",
+            "default": []
+          },
+          "people_over": {
+            "items": {
+              "$ref": "#/components/schemas/PersonRef"
+            },
+            "type": "array",
+            "title": "People Over",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "minutes"
+        ],
+        "title": "TimesheetDay",
+        "description": "A column: the day's total, and what is marked about it.\n\n`nothing_logged` is a weekday up to today with no time on it -- for a\nrow per person, somebody's (`people_without_time` says whose). `over`\nis more than the instance's long day (`TIMESHEET_LONG_DAY_HOURS`)."
+      },
+      "TimesheetDaySet": {
+        "properties": {
+          "minutes": {
+            "type": "integer",
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "minutes"
+        ],
+        "title": "TimesheetDaySet",
+        "description": "What my time on a ticket comes to on one day. Nothing clears it."
+      },
+      "TimesheetPersonRow": {
+        "properties": {
+          "person": {
+            "$ref": "#/components/schemas/PersonRef"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/TimesheetCell"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "person",
+          "days",
+          "minutes"
+        ],
+        "title": "TimesheetPersonRow"
+      },
+      "TimesheetTicket": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "team_id": {
+            "type": "integer",
+            "title": "Team Id"
+          },
+          "team_key": {
+            "type": "string",
+            "title": "Team Key"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "type": {
+            "$ref": "#/components/schemas/TicketType"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/TicketPriority"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StatusRead"
+          },
+          "can_log": {
+            "type": "boolean",
+            "title": "Can Log"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "team_id",
+          "team_key",
+          "number",
+          "identifier",
+          "title",
+          "type",
+          "priority",
+          "status",
+          "can_log"
+        ],
+        "title": "TimesheetTicket"
+      },
+      "TimesheetTicketRow": {
+        "properties": {
+          "ticket": {
+            "$ref": "#/components/schemas/TimesheetTicket"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/TimesheetCell"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket",
+          "days",
+          "minutes"
+        ],
+        "title": "TimesheetTicketRow"
+      },
       "Token": {
         "properties": {
           "access_token": {
@@ -25027,6 +27355,98 @@
           "user"
         ],
         "title": "Token"
+      },
+      "TotpCode": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "TotpCode",
+        "description": "A code from the authenticator -- or, to turn it off, a recovery code."
+      },
+      "TotpEnrolmentResult": {
+        "properties": {
+          "recovery_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recovery Codes"
+          },
+          "token": {
+            "$ref": "#/components/schemas/Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recovery_codes",
+          "token"
+        ],
+        "title": "TotpEnrolmentResult"
+      },
+      "TotpEnrolmentStart": {
+        "properties": {
+          "provisioning_uri": {
+            "type": "string",
+            "title": "Provisioning Uri"
+          },
+          "manual_key": {
+            "type": "string",
+            "title": "Manual Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provisioning_uri",
+          "manual_key"
+        ],
+        "title": "TotpEnrolmentStart"
+      },
+      "TotpLoginPending": {
+        "properties": {
+          "pending_token": {
+            "type": "string",
+            "title": "Pending Token"
+          },
+          "totp_required": {
+            "type": "boolean",
+            "const": true,
+            "title": "Totp Required",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending_token"
+        ],
+        "title": "TotpLoginPending",
+        "description": "A first factor that passed, for an account with two-factor on."
+      },
+      "TotpVerifyRequest": {
+        "properties": {
+          "pending_token": {
+            "type": "string",
+            "title": "Pending Token"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending_token",
+          "code"
+        ],
+        "title": "TotpVerifyRequest"
       },
       "TransferPlan": {
         "properties": {
@@ -25453,6 +27873,20 @@
             "format": "date-time",
             "title": "Created At"
           },
+          "totp_enabled": {
+            "type": "boolean",
+            "title": "Totp Enabled"
+          },
+          "employment_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "job_title": {
             "anyOf": [
               {
@@ -25519,7 +27953,8 @@
           "is_site_admin",
           "is_finance_admin",
           "has_password",
-          "created_at"
+          "created_at",
+          "totp_enabled"
         ],
         "title": "UserMe",
         "description": "The signed-in user's own record.\n\nA superset of UserPublic rather than a separate model: what the account\ncan do instance-wide is the user's business, and nobody else's, so it is\nonly ever returned for `me`."
@@ -26166,6 +28601,11 @@
             "type": "array",
             "title": "Tickets",
             "default": []
+          },
+          "team_archived": {
+            "type": "boolean",
+            "title": "Team Archived",
+            "default": false
           }
         },
         "type": "object",
@@ -26261,6 +28701,14 @@
             },
             "type": "array",
             "title": "Reports"
+          },
+          "capacity": {
+            "items": {
+              "$ref": "#/components/schemas/TeamCapacity"
+            },
+            "type": "array",
+            "title": "Capacity",
+            "default": []
           }
         },
         "type": "object",
@@ -26409,6 +28857,20 @@
               }
             ],
             "title": "Note"
+          },
+          "remaining_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Minutes",
+            "description": "Minutes left, set by hand. Null means worked out: the time estimate less what is logged."
           }
         },
         "type": "object",
@@ -26523,6 +28985,7 @@
           "bad_credentials",
           "account_deactivated",
           "rate_limited",
+          "metrics_disabled",
           "not_team_member",
           "not_team_admin",
           "team_read_only",
@@ -26571,6 +29034,8 @@
           "email_taken",
           "username_taken",
           "team_key_taken",
+          "team_key_archived",
+          "team_key_retired",
           "status_name_taken",
           "template_name_taken",
           "custom_field_key_taken",
@@ -26630,6 +29095,7 @@
           "share_password_wrong",
           "share_target_required",
           "worklog_in_future",
+          "timesheet_range_invalid",
           "transfer_same_team",
           "view_other_team",
           "view_private_default",
@@ -26698,7 +29164,13 @@
           "oauth_provider_disabled",
           "oauth_expired",
           "oauth_connect_failed",
-          "oauth_not_connected"
+          "oauth_not_connected",
+          "totp_code_invalid",
+          "totp_session_expired",
+          "totp_not_enrolling",
+          "totp_already_enabled",
+          "totp_not_enabled",
+          "totp_unavailable"
         ],
         "title": "ErrorCode",
         "type": "string"

@@ -61,6 +61,9 @@ export const adminUsers = {
   removeSiteAdmin: 'Remove site admin',
   cannotChangeOwnAdmin: 'You cannot change your own site admin access',
   resetPassword: 'Reset password',
+  clearTotp: 'Reset two-factor',
+  confirmClearTotp:
+    'Turn off two-factor for {{name}}? Only do this once you are sure it is them asking — they will sign in with just their password, and every session they have ends now.',
   grantFinance: 'Grant finance access',
   revokeFinance: 'Revoke finance access',
   /** An account a site admin created, before its owner arrives (#303). */
@@ -115,6 +118,7 @@ export const adminUsers = {
   errors: {
     update: 'Could not update that account.',
     reset: 'Could not reset that password.',
+    clearTotp: 'Could not reset two-factor for that account.',
   },
   /** The organisation's facts about someone, set on their row (#122). */
   editor: {
@@ -126,6 +130,16 @@ export const adminUsers = {
     noManager: 'No manager',
     searchPeople: 'Search people',
     startDate: 'Start date',
+    employmentType: 'Employment type',
+    employmentTypeHint:
+      'Employee, contractor, intern, external or service account. Only employees are on payroll unless finance adds a type.',
+    employmentTypes: {
+      employee: 'Employee',
+      contractor: 'Contractor',
+      intern: 'Intern',
+      external: 'External',
+      service_account: 'Service account',
+    },
     theirs: 'Job title and location are {{name}}’s to edit, from their own profile.',
   },
   /** People whose manager has been deactivated (#124). */

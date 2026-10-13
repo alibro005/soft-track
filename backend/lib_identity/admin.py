@@ -17,7 +17,7 @@ from sqlmodel import Session, col, func, or_, select
 from lib_finance import access as finance_access
 from lib_identity import accounts, api_tokens, managers, sessions
 from lib_identity.departments import require_department
-from lib_identity.identity import get_current_user
+from lib_identity.identity import clear_totp, get_current_user
 from lib_identity.models.admin import (
     AdminRole,
     AdminUserRead,
@@ -27,7 +27,14 @@ from lib_identity.models.admin import (
 )
 from lib_identity.models.identity import PersonRef, UserMe
 from lib_softtrack.models.page import DEFAULT_LIMIT, Page
-from lib_softtrack.tables import GuestEpic, Project, Team, TeamMember, TeamRole, User
+from lib_softtrack.tables import (
+    GuestEpic,
+    Project,
+    Team,
+    TeamMember,
+    TeamRole,
+    User,
+)
 from lib_utils.password import hash_password
 from lib_utils.errors import ErrorCode, api_error
 
@@ -315,6 +322,8 @@ def update_user(
         user.is_site_admin = payload.is_site_admin
     if payload.is_finance_admin is not None:
         finance_access.set_finance_admin(actor, user, payload.is_finance_admin)
+    if "employment_type" in payload.model_fields_set:
+        user.employment_type = payload.employment_type
     if payload.is_external is not None:
         user.is_external = payload.is_external
     if payload.is_active is not None:
@@ -404,6 +413,20 @@ def reset_password(
             "their link again instead.",
         )
     user.hashed_password = hash_password(new_password)
+    user.token_version += 1
+    session.add(user)
+    session.commit()
+
+
+def admin_clear_totp(session: Session, actor: User, user_id: int) -> None:
+    """Turn two-factor off for someone who has lost their authenticator.
+
+    Unconditional, and clears a half-finished setup as well: an escape hatch
+    that only opens in the expected state is not one. Their sessions end
+    either way, as with a password reset.
+    """
+    user = get_user_or_404(session, user_id)
+    clear_totp(user)
     user.token_version += 1
     session.add(user)
     session.commit()
