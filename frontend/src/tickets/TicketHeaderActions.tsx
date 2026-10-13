@@ -1,12 +1,14 @@
 import { useState } from 'react'
 
 import type { TicketRead } from '@/api/generated/models'
+import { useAuth } from '@/auth/useAuth'
 import { useTranslation } from '@/i18n'
 import { TicketActionsMenu } from '@/tickets/detail/TicketActionsMenu'
 import { DeleteTicketDialog } from '@/tickets/DeleteTicketDialog'
 import { MoveTicketModal } from '@/tickets/MoveTicketModal'
 import { WatchToggle } from '@/notifications/WatchToggle'
 import { activeTeams } from '@/team/archived'
+import { mayDeleteTicket } from '@/team/members'
 import { useCanWrite } from '@/team/useCanWrite'
 import { useTeamContext } from '@/team/useTeamContext'
 
@@ -23,7 +25,8 @@ export function TicketHeaderActions({
   onDeleted?: () => void
 }) {
   const { t } = useTranslation('tickets')
-  const { teams } = useTeamContext()
+  const { team, teams, members } = useTeamContext()
+  const { user } = useAuth()
   // A guest (#104) sees the whole ticket and can change none of it -- except
   // whether they are watching it, which is theirs.
   const readOnly = !useCanWrite()
@@ -32,7 +35,10 @@ export function TicketHeaderActions({
   // Teams it could go to. Whether the user may write to each is the server's
   // call, and the move dialog says so if not. Not an archived one (#322),
   // which takes nothing.
-  const elsewhere = activeTeams(teams).filter((team) => team.id !== ticket.team_id)
+  const elsewhere = activeTeams(teams).filter((other) => other.id !== ticket.team_id)
+  // Deleting moves it to the trash (#323), which the team may leave to its
+  // admins and the ticket's creator.
+  const mayDelete = mayDeleteTicket(team, members, user?.id, ticket)
 
   return (
     <>
@@ -43,11 +49,15 @@ export function TicketHeaderActions({
             ...(elsewhere.length > 0
               ? [{ label: t('panel.actions.moveToTeam'), onSelect: () => setMoving(true) }]
               : []),
-            {
-              label: t('panel.actions.delete'),
-              onSelect: () => setDeleting(true),
-              destructive: true,
-            },
+            ...(mayDelete
+              ? [
+                  {
+                    label: t('panel.actions.delete'),
+                    onSelect: () => setDeleting(true),
+                    destructive: true,
+                  },
+                ]
+              : []),
           ]}
         />
       )}

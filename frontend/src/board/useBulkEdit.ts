@@ -8,7 +8,7 @@ import {
 } from '@/api/generated/endpoints/tickets/tickets'
 import type { TicketBulkChanges, TeamRead } from '@/api/generated/models'
 import { useTranslation } from '@/i18n'
-import { invalidateProjects } from '@/team/projects'
+import { invalidateTicketWrites, invalidateTrashedTickets } from '@/tickets/invalidateTickets'
 
 /**
  * Change or delete many tickets in one request.
@@ -28,16 +28,7 @@ export function useBulkEdit(team: TeamRead | undefined) {
   const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(() => {
-    if (!team) return
-    // Prefixes: every filtered page of the list, and every open ticket.
-    queryClient.invalidateQueries({ queryKey: [`/teams/${team.id}/tickets`] })
-    queryClient.invalidateQueries({ queryKey: [`/teams/${team.id}/estimates`] })
-    queryClient.invalidateQueries({ queryKey: [`/teams/${team.id}/sprints`] })
-    invalidateProjects(queryClient, team.id)
-    queryClient.invalidateQueries({
-      predicate: (query) =>
-        typeof query.queryKey[0] === 'string' && query.queryKey[0].startsWith('/tickets/'),
-    })
+    if (team) invalidateTicketWrites(queryClient, team.id)
   }, [queryClient, team])
 
   const update = useCallback(
@@ -71,10 +62,11 @@ export function useBulkEdit(team: TeamRead | undefined) {
         setError(errorDetail(err, t('bulk.errors.delete')))
         return false
       } finally {
-        refresh()
+        // Out of My work, search and into the trash too.
+        invalidateTrashedTickets(queryClient, team.id)
       }
     },
-    [bulkDelete, refresh, t, team],
+    [bulkDelete, queryClient, t, team],
   )
 
   return {

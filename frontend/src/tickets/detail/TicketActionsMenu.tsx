@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { Fragment, type ReactNode, useEffect, useRef, useState } from 'react'
 
 import { useTranslation } from '@/i18n'
 import { Icon, type IconName } from '@/ui/Icon'
@@ -17,11 +17,20 @@ export interface TicketAction {
 }
 
 /**
+ * Whether a divider goes above this action: the first destructive one after
+ * others. Not when it is the only action, or the first, or follows another
+ * destructive one -- a line there would divide nothing.
+ */
+function dividedFrom(actions: TicketAction[], index: number): boolean {
+  return Boolean(actions[index].destructive) && index > 0 && !actions[index - 1].destructive
+}
+
+/**
  * The ticket panel's ⋯ menu: actions rare enough not to deserve a button of
- * their own. Moving to another team (#98) is the first. A comment's Edit and
- * Delete (#93) use it too, with their own labels and a smaller button, and
- * so does a team's row under Administration → Teams (#307), with a heading
- * and icons.
+ * their own. Moving to another team (#98) is the first, and deleting a
+ * ticket (#158) the last, after a divider. A comment's Edit and Delete (#93)
+ * use it too, with their own labels and a smaller button, and so does a
+ * team's row under Administration → Teams (#307), with a heading and icons.
  */
 export function TicketActionsMenu({
   actions,
@@ -94,36 +103,28 @@ export function TicketActionsMenu({
           className="glass-strong absolute right-0 top-full z-10 mt-1 min-w-48 rounded-card p-1 shadow-lg"
         >
           {heading}
-          {actions.map((action) => (
-            <button
-              key={action.label}
-              type="button"
-              role="menuitem"
-              disabled={action.disabled}
-              onClick={() => {
-                setOpen(false)
-                action.onSelect()
-              }}
-              className={`nav-item w-full text-left text-sm disabled:cursor-not-allowed disabled:opacity-60 ${
-                action.destructive
-                  ? 'mt-1 border-t border-neutral-900/10 pt-2'
-                  : ''
-              } ${action.destructive && !action.disabled ? 'text-danger-600' : ''}`}
-            >
-              {action.icon && (
-                <Icon
-                  name={action.icon}
-                  size={14}
-                  className="shrink-0 opacity-70"
-                />
+          {actions.map((action, index) => (
+            <Fragment key={action.label}>
+              {dividedFrom(actions, index) && (
+                <div role="separator" className="hairline mx-1 my-1 border-t" />
               )}
-              <span className="flex-1">{action.label}</span>
-              {action.hint && (
-                <span className="whitespace-nowrap text-xs text-neutral-400">
-                  {action.hint}
-                </span>
-              )}
-            </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={action.disabled}
+                onClick={() => {
+                  setOpen(false)
+                  action.onSelect()
+                }}
+                className={`nav-item w-full text-left text-sm disabled:cursor-not-allowed disabled:opacity-60 ${action.destructive && !action.disabled ? 'text-danger-600' : ''}`}
+              >
+                {action.icon && <Icon name={action.icon} size={14} className="shrink-0 opacity-70" />}
+                <span className="flex-1">{action.label}</span>
+                {action.hint && (
+                  <span className="whitespace-nowrap text-xs text-neutral-400">{action.hint}</span>
+                )}
+              </button>
+            </Fragment>
           ))}
         </div>
       )}

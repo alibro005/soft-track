@@ -1,4 +1,4 @@
-import type { TeamMemberRead, UserPublic } from '@/api/generated/models'
+import type { TeamMemberRead, TeamRead, TicketRead, UserPublic } from '@/api/generated/models'
 
 /**
  * The people a picker should offer.
@@ -51,4 +51,25 @@ export function assigneeChoices(
  */
 export function canWriteIn(members: TeamMemberRead[], userId: number | undefined): boolean {
   return members.find((member) => member.user.id === userId)?.role !== 'guest'
+}
+
+/**
+ * Whether someone may move a ticket to the trash (#323), as
+ * `lib_softtrack/deleting.py` decides it: the team's admins and the ticket's
+ * creator, or anybody but a guest on a team with `any_member_may_delete`.
+ *
+ * A site admin gets no exception there, so none here. Someone missing from
+ * the roster counts as a member, as in `canWriteIn`: the server has the last
+ * word, and a guest has no ⋯ menu to offer this in.
+ */
+export function mayDeleteTicket(
+  team: Pick<TeamRead, 'any_member_may_delete'>,
+  members: TeamMemberRead[],
+  userId: number | undefined,
+  ticket: Pick<TicketRead, 'creator'>,
+): boolean {
+  if (userId === undefined) return false
+  const role = members.find((member) => member.user.id === userId)?.role
+  if (role === 'guest') return false
+  return role === 'admin' || ticket.creator.id === userId || Boolean(team.any_member_may_delete)
 }

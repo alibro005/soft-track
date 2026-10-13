@@ -26,6 +26,7 @@ function ticket(number: number, fields: Partial<TicketRead> = {}): TicketRead {
     identifier: `ENG-${number}`,
     title: `Ticket ${number}`,
     status: { id: 1, team_id: 5, name: 'Todo', category: 'unstarted', position: 0, color: '#888' },
+    creator: { id: 2, username: 'priya', full_name: 'Priya' },
     ...fields,
   } as unknown as TicketRead
 }
